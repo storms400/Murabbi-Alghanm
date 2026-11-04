@@ -1,3 +1,4 @@
+
 name: Build Android APK
 
 on:
@@ -8,6 +9,7 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
       - uses: actions/checkout@v4
 
@@ -21,7 +23,7 @@ jobs:
           gradle-version: '8.9'
 
       - name: Extract Android project
-        run: unzip -o MurabbiAlghanmAndroid_Source_FIXED3.zip -d .
+        run: unzip -o MurabbiAlghanm_Rebuilt_Source.zip -d .
 
       - name: Build APK
         run: gradle --no-daemon :app:assembleDebug
