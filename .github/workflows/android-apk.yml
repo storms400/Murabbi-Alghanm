@@ -25,10 +25,14 @@ jobs:
       - name: Extract Android project
         run: unzip -o MurabbiAlghanm_Rebuilt_Source.zip -d .
 
+      - name: Set test application ID
+        run: sed -i 's/applicationId = "dz.murabbi.alghanm"/applicationId = "dz.murabbi.alghanm.test"/' app/build.gradle.kts
+
       - name: Build APK
         run: gradle --no-daemon :app:assembleDebug
 
       - uses: actions/upload-artifact@v4
         with:
-          name: MurabbiAlghanm-debug-apk
+          name: MurabbiAlghanm-Test-APK
           path: app/build/outputs/apk/debug/app-debug.apk
+
