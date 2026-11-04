@@ -21,7 +21,7 @@ jobs:
           gradle-version: '8.9'
 
       - name: Extract Android project
-        run: unzip -o MurabbiAlghanmAndroid_Source.zip -d .
+        run: unzip -o MurabbiAlghanmAndroid_Source_FIXED.zip -d .
 
       - name: Build APK
         run: gradle --no-daemon :app:assembleDebug
