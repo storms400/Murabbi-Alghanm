@@ -1,0 +1,210 @@
+
+package dz.murabbi.alghanm.data
+
+import android.content.Context
+import androidx.room.*
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
+import kotlinx.coroutines.flow.Flow
+
+@Entity(tableName = "animals")
+data class Animal(
+    @PrimaryKey val tag: String,
+    val sex: String,
+    val category: String,
+    val weightKg: Double,
+    val birthDate: String = "",
+    val motherTag: String = "",
+    val fatherTag: String = "",
+    val active: Boolean = true,
+    val archiveReason: String = "",
+    val createdAt: Long = System.currentTimeMillis()
+)
+
+@Entity(tableName = "feed_purchases")
+data class FeedPurchase(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val feedName: String,
+    val quantityKg: Double,
+    val totalPriceDzd: Double? = null,
+    val supplier: String = "",
+    val purchaseDate: String
+)
+
+@Entity(tableName = "feed_consumptions")
+data class FeedConsumption(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val feedName: String,
+    val quantityKg: Double,
+    val consumptionDate: String,
+    val animalCategory: String = "",
+    val animalCount: Int = 0,
+    val notes: String = ""
+)
+
+@Entity(tableName = "farm_tasks")
+data class FarmTask(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val taskType: String,
+    val taskDate: String,
+    val animalCount: Int,
+    val notes: String = "",
+    val completed: Boolean = false
+)
+
+@Entity(tableName = "herd_events")
+data class HerdEvent(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val animalTag: String,
+    val eventType: String,
+    val eventDate: String,
+    val notes: String = ""
+)
+
+@Dao
+abstract class FarmDao {
+
+    @Query("SELECT * FROM animals WHERE active = 1 ORDER BY tag")
+    abstract fun activeAnimals(): Flow<List<Animal>>
+
+    @Query("SELECT * FROM animals ORDER BY createdAt DESC")
+    abstract fun allAnimals(): Flow<List<Animal>>
+
+    @Insert(onConflict = OnConflictStrategy.ABORT)
+    abstract suspend fun insertAnimal(animal: Animal)
+
+    @Update
+    abstract suspend fun updateAnimal(animal: Animal)
+
+    @Query("UPDATE animals SET active = 0, archiveReason = :reason WHERE tag = :tag")
+    abstract suspend fun archiveAnimal(tag: String, reason: String)
+
+    @Insert
+    abstract suspend fun addPurchase(purchase: FeedPurchase)
+
+    @Query("SELECT * FROM feed_purchases ORDER BY id DESC")
+    abstract fun purchases(): Flow<List<FeedPurchase>>
+
+    @Query("""
+        SELECT COALESCE(SUM(quantityKg), 0)
+        FROM feed_purchases
+        WHERE feedName = :feedName
+    """)
+    abstract suspend fun purchasedQuantityNow(feedName: String): Double
+
+    @Query("""
+        SELECT COALESCE(SUM(quantityKg), 0)
+        FROM feed_consumptions
+        WHERE feedName = :feedName
+    """)
+    abstract suspend fun consumedQuantityNow(feedName: String): Double
+
+    @Insert
+    protected abstract suspend fun insertConsumption(
+        consumption: FeedConsumption
+    )
+
+    @Transaction
+    open suspend fun addConsumptionSafely(
+        consumption: FeedConsumption
+    ): Boolean {
+        if (consumption.quantityKg <= 0 ||
+            consumption.quantityKg.isNaN() ||
+            consumption.quantityKg.isInfinite()
+        ) return false
+
+        val purchased = purchasedQuantityNow(consumption.feedName)
+        val consumed = consumedQuantityNow(consumption.feedName)
+        val available = purchased - consumed
+
+        if (consumption.quantityKg > available + 0.000001) {
+            return false
+        }
+
+        insertConsumption(consumption)
+        return true
+    }
+
+    @Query("SELECT * FROM feed_consumptions ORDER BY id DESC")
+    abstract fun consumptions(): Flow<List<FeedConsumption>>
+
+    @Query("""
+        SELECT COALESCE(SUM(quantityKg), 0)
+        FROM feed_purchases
+        WHERE feedName = :feedName
+    """)
+    fun purchasedQuantity(feedName: String): Flow<Double>
+
+    @Query("""
+        SELECT COALESCE(SUM(quantityKg), 0)
+        FROM feed_consumptions
+        WHERE feedName = :feedName
+    """)
+    fun consumedQuantity(feedName: String): Flow<Double>
+
+    @Insert
+    abstract suspend fun addTask(task: FarmTask)
+
+    @Query("SELECT * FROM farm_tasks ORDER BY taskDate DESC, id DESC")
+    abstract fun tasks(): Flow<List<FarmTask>>
+
+    @Insert
+    abstract suspend fun addEvent(event: HerdEvent)
+
+    @Query("SELECT * FROM herd_events ORDER BY id DESC")
+    abstract fun events(): Flow<List<HerdEvent>>
+
+    @Query("SELECT COUNT(*) FROM animals WHERE active = 1")
+    abstract fun activeCount(): Flow<Int>
+}
+
+@Database(
+    entities = [
+        Animal::class,
+        FeedPurchase::class,
+        FeedConsumption::class,
+        FarmTask::class,
+        HerdEvent::class
+    ],
+    version = 2,
+    exportSchema = true
+)
+abstract class FarmDatabase : RoomDatabase() {
+
+    abstract fun farmDao(): FarmDao
+
+    companion object {
+
+        @Volatile
+        private var INSTANCE: FarmDatabase? = null
+
+        private val MIGRATION_1_2 = object : Migration(1, 2) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS feed_consumptions (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        feedName TEXT NOT NULL,
+                        quantityKg REAL NOT NULL,
+                        consumptionDate TEXT NOT NULL,
+                        animalCategory TEXT NOT NULL,
+                        animalCount INTEGER NOT NULL,
+                        notes TEXT NOT NULL
+                    )
+                """.trimIndent())
+            }
+        }
+
+        fun get(context: Context): FarmDatabase =
+            INSTANCE ?: synchronized(this) {
+                INSTANCE ?: Room.databaseBuilder(
+                    context.applicationContext,
+                    FarmDatabase::class.java,
+                    "murabbi_alghanm.db"
+                )
+                    .addMigrations(MIGRATION_1_2)
+                    .build()
+                    .also { INSTANCE = it }
+            }
+    }
+}
+

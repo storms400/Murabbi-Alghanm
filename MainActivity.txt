@@ -1,0 +1,1048 @@
+
+package dz.murabbi.alghanm
+
+import android.os.Bundle
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.unit.LayoutDirection
+import androidx.compose.ui.unit.dp
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import dz.murabbi.alghanm.data.*
+import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.launch
+import java.time.LocalDate
+
+class MainActivity : ComponentActivity() {
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+
+        val db = FarmDatabase.get(this)
+
+        setContent {
+            val vm = remember {
+                FarmViewModel(db.farmDao())
+            }
+
+            MaterialTheme {
+                CompositionLocalProvider(
+                    LocalLayoutDirection provides LayoutDirection.Rtl
+                ) {
+                    FarmScreen(vm)
+                }
+            }
+        }
+    }
+}
+
+class FarmViewModel(private val dao: FarmDao) : ViewModel() {
+
+    val animals = dao.activeAnimals().stateIn(
+        viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList()
+    )
+
+    val purchases = dao.purchases().stateIn(
+        viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList()
+    )
+
+    val consumptions = dao.consumptions().stateIn(
+        viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList()
+    )
+
+    val tasks = dao.tasks().stateIn(
+        viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList()
+    )
+
+    val events = dao.events().stateIn(
+        viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList()
+    )
+
+    fun addAnimal(
+        tag: String,
+        sex: String,
+        category: String,
+        weight: Double,
+        onResult: (String?) -> Unit
+    ) {
+        viewModelScope.launch {
+            try {
+                dao.insertAnimal(
+                    Animal(
+                        tag = tag.trim(),
+                        sex = sex,
+                        category = category,
+                        weightKg = weight
+                    )
+                )
+                onResult(null)
+            } catch (_: Exception) {
+                onResult("تعذر الحفظ: تأكد أن رمز الحيوان غير مكرر.")
+            }
+        }
+    }
+
+    fun archive(animal: Animal, onResult: (Boolean) -> Unit) {
+        viewModelScope.launch {
+            try {
+                dao.archiveAnimal(animal.tag, "أرشفة يدوية")
+                onResult(true)
+            } catch (_: Exception) {
+                onResult(false)
+            }
+        }
+    }
+
+    fun updateAnimal(
+        animal: Animal,
+        onResult: (Boolean) -> Unit
+    ) {
+        viewModelScope.launch {
+            try {
+                dao.updateAnimal(animal)
+                onResult(true)
+            } catch (_: Exception) {
+                onResult(false)
+            }
+        }
+    }
+
+    fun addAnimalEvent(
+        tag: String,
+        type: String,
+        date: String,
+        notes: String,
+        onResult: (Boolean) -> Unit
+    ) {
+        viewModelScope.launch {
+            try {
+                dao.addEvent(
+                    HerdEvent(
+                        animalTag = tag,
+                        eventType = type,
+                        eventDate = date,
+                        notes = notes
+                    )
+                )
+                onResult(true)
+            } catch (_: Exception) {
+                onResult(false)
+            }
+        }
+    }
+
+    fun addPurchase(
+        name: String,
+        qty: Double,
+        price: Double?,
+        supplier: String,
+        onResult: (Boolean) -> Unit
+    ) {
+        viewModelScope.launch {
+            try {
+                dao.addPurchase(
+                    FeedPurchase(
+                        feedName = name.trim(),
+                        quantityKg = qty,
+                        totalPriceDzd = price,
+                        supplier = supplier,
+                        purchaseDate = LocalDate.now().toString()
+                    )
+                )
+                onResult(true)
+            } catch (_: Exception) {
+                onResult(false)
+            }
+        }
+    }
+
+    fun addConsumption(
+        name: String,
+        qty: Double,
+        category: String,
+        count: Int,
+        notes: String,
+        onResult: (Boolean) -> Unit
+    ) {
+        viewModelScope.launch {
+            try {
+                val saved = dao.addConsumptionSafely(
+                    FeedConsumption(
+                        feedName = name,
+                        quantityKg = qty,
+                        consumptionDate = LocalDate.now().toString(),
+                        animalCategory = category,
+                        animalCount = count,
+                        notes = notes
+                    )
+                )
+                onResult(saved)
+            } catch (_: Exception) {
+                onResult(false)
+            }
+        }
+    }
+
+    fun addTask(
+        type: String,
+        date: String,
+        count: Int,
+        notes: String,
+        onResult: (Boolean) -> Unit
+    ) {
+        viewModelScope.launch {
+            try {
+                dao.addTask(
+                    FarmTask(
+                        taskType = type,
+                        taskDate = date,
+                        animalCount = count,
+                        notes = notes
+                    )
+                )
+                onResult(true)
+            } catch (_: Exception) {
+                onResult(false)
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun FarmScreen(vm: FarmViewModel) {
+
+    val animals by vm.animals.collectAsState()
+    val purchases by vm.purchases.collectAsState()
+    val consumptions by vm.consumptions.collectAsState()
+    val tasks by vm.tasks.collectAsState()
+    val events by vm.events.collectAsState()
+
+    var selectedTab by remember { mutableIntStateOf(0) }
+    var selectedAnimal by remember { mutableStateOf<Animal?>(null) }
+    var screenMessage by remember { mutableStateOf("") }
+
+    val tabs = listOf("الرئيسية", "القطيع", "المشتريات", "التغذية", "الرعاية")
+
+    Scaffold(
+        topBar = {
+            TopAppBar(title = { Text("مربي الغنم 🐑") })
+        },
+        bottomBar = {
+            NavigationBar {
+                tabs.forEachIndexed { index, title ->
+                    NavigationBarItem(
+                        selected = selectedTab == index,
+                        onClick = {
+                            selectedTab = index
+                            selectedAnimal = null
+                            screenMessage = ""
+                        },
+                        icon = {
+                            Icon(
+                                imageVector = when (index) {
+                                    0 -> androidx.compose.material.icons.Icons.Default.Home
+                                    1 -> androidx.compose.material.icons.Icons.Default.Pets
+                                    2 -> androidx.compose.material.icons.Icons.Default.ShoppingCart
+                                    3 -> androidx.compose.material.icons.Icons.Default.Inventory
+                                    else -> androidx.compose.material.icons.Icons.Default.CalendarMonth
+                                },
+                                contentDescription = title
+                            )
+                        },
+                        label = { Text(title) }
+                    )
+                }
+            }
+        }
+    ) { padding ->
+
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .padding(12.dp)
+        ) {
+
+            if (selectedAnimal != null) {
+                val animal = selectedAnimal!!
+
+                AnimalDetailsScreen(
+                    animal = animal,
+                    events = events.filter { it.animalTag == animal.tag },
+                    onBack = { selectedAnimal = null },
+                    onUpdate = { updated ->
+                        vm.updateAnimal(updated) { success ->
+                            screenMessage = if (success)
+                                "تم تحديث البيانات بنجاح."
+                            else
+                                "تعذر تحديث البيانات."
+                        }
+                    },
+                    onAddEvent = { type, date, notes ->
+                        vm.addAnimalEvent(
+                            animal.tag, type, date, notes
+                        ) { success ->
+                            screenMessage = if (success)
+                                "تم تسجيل الحدث."
+                            else
+                                "تعذر تسجيل الحدث."
+                        }
+                    },
+                    onArchive = {
+                        vm.archive(animal) { success ->
+                            if (success) selectedAnimal = null
+                            else screenMessage = "تعذرت أرشفة الحيوان."
+                        }
+                    }
+                )
+
+                if (screenMessage.isNotBlank()) {
+                    Text(screenMessage)
+                }
+
+            } else {
+
+                when (selectedTab) {
+
+                    0 -> HomeScreen(
+                        animals, purchases, consumptions, tasks
+                    )
+
+                    1 -> HerdScreen(
+                        animals = animals,
+                        onOpen = { selectedAnimal = it },
+                        onAdd = { tag, sex, category, weight, result ->
+                            vm.addAnimal(
+                                tag, sex, category, weight, result
+                            )
+                        }
+                    )
+
+                    2 -> PurchasesScreen(
+                        purchases = purchases,
+                        onAdd = { name, qty, price, supplier, result ->
+                            vm.addPurchase(
+                                name, qty, price, supplier, result
+                            )
+                        }
+                    )
+
+                    3 -> FeedingScreen(
+                        purchases = purchases,
+                        consumptions = consumptions,
+                        animals = animals,
+                        onAdd = { name, qty, category, count, notes, result ->
+                            vm.addConsumption(
+                                name, qty, category, count, notes, result
+                            )
+                        }
+                    )
+
+                    else -> CareScreen(
+                        tasks = tasks,
+                        onAdd = { type, date, count, notes, result ->
+                            vm.addTask(type, date, count, notes, result)
+                        }
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun HomeScreen(
+    animals: List<Animal>,
+    purchases: List<FeedPurchase>,
+    consumptions: List<FeedConsumption>,
+    tasks: List<FarmTask>
+) {
+    val totalPurchased = purchases.sumOf { it.quantityKg }
+    val totalConsumed = consumptions.sumOf { it.quantityKg }
+
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        item {
+            Text("لوحة المزرعة", style = MaterialTheme.typography.headlineSmall)
+        }
+        item {
+            SummaryCard("عدد الحيوانات النشطة", animals.size.toString())
+        }
+        item {
+            SummaryCard("عدد المشتريات", purchases.size.toString())
+        }
+        item {
+            SummaryCard("إجمالي العلف المشترى", "$totalPurchased كغ")
+        }
+        item {
+            SummaryCard("إجمالي العلف المستهلك", "$totalConsumed كغ")
+        }
+        item {
+            SummaryCard("المهام المسجلة", tasks.size.toString())
+        }
+        item {
+            Text(
+                "ستُضاف حسابات الاحتياجات الغذائية بعد تحديد أوزان الحيوانات وجودة الأعلاف.",
+                color = MaterialTheme.colorScheme.primary
+            )
+        }
+    }
+}
+
+@Composable
+fun SummaryCard(title: String, value: String) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(title, style = MaterialTheme.typography.bodyMedium)
+            Text(value, style = MaterialTheme.typography.titleLarge)
+        }
+    }
+}
+
+@Composable
+fun HerdScreen(
+    animals: List<Animal>,
+    onOpen: (Animal) -> Unit,
+    onAdd: (String, String, String, Double, (String?) -> Unit) -> Unit
+) {
+    var tag by remember { mutableStateOf("") }
+    var sex by remember { mutableStateOf("أنثى") }
+    var category by remember { mutableStateOf("نعجة") }
+    var weight by remember { mutableStateOf("") }
+    var error by remember { mutableStateOf("") }
+    var saving by remember { mutableStateOf(false) }
+
+    Column(modifier = Modifier.fillMaxSize()) {
+
+        Text("القطيع", style = MaterialTheme.typography.headlineSmall)
+
+        OutlinedTextField(
+            value = tag,
+            onValueChange = { tag = it },
+            label = { Text("رقم أو رمز الحيوان") },
+            modifier = Modifier.fillMaxWidth(),
+            enabled = !saving
+        )
+
+        OutlinedTextField(
+            value = weight,
+            onValueChange = { weight = it },
+            label = { Text("الوزن بالكغ") },
+            modifier = Modifier.fillMaxWidth(),
+            enabled = !saving
+        )
+
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            DropdownField(
+                label = "الجنس",
+                value = sex,
+                options = listOf("أنثى", "ذكر"),
+                onSelect = { sex = it },
+                modifier = Modifier.weight(1f)
+            )
+            DropdownField(
+                label = "الفئة",
+                value = category,
+                options = listOf("نعجة", "فحل", "حمل", "خروف"),
+                onSelect = { category = it },
+                modifier = Modifier.weight(1f)
+            )
+        }
+
+        Button(
+            enabled = !saving,
+            onClick = {
+                val w = weight.toDoubleOrNull()
+                if (tag.isBlank() || w == null || w <= 0 ||
+                    w.isNaN() || w.isInfinite()
+                ) {
+                    error = "أدخل رمز الحيوان ووزناً صحيحاً."
+                } else {
+                    saving = true
+                    error = ""
+                    onAdd(tag, sex, category, w) { result ->
+                        saving = false
+                        if (result == null) {
+                            tag = ""
+                            weight = ""
+                            error = "تمت إضافة الحيوان."
+                        } else {
+                            error = result
+                        }
+                    }
+                }
+            },
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text(if (saving) "جارٍ الحفظ..." else "إضافة حيوان")
+        }
+
+        if (error.isNotBlank()) {
+            Text(error, color = MaterialTheme.colorScheme.error)
+        }
+
+        HorizontalDivider()
+        Text("الحيوانات النشطة: ${animals.size}")
+
+        LazyColumn(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            items(animals, key = { it.tag }) { animal ->
+                Card(
+                    onClick = { onOpen(animal) },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(Modifier.padding(12.dp)) {
+                        Text("الرمز: ${animal.tag}")
+                        Text("${animal.category} - ${animal.sex}")
+                        Text("الوزن: ${animal.weightKg} كغ")
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun PurchasesScreen(
+    purchases: List<FeedPurchase>,
+    onAdd: (String, Double, Double?, String, (Boolean) -> Unit) -> Unit
+) {
+    val feeds = listOf(
+        "الشعير", "التبن", "النخالة",
+        "الذرة", "البرسيم الأخضر", "البرسيم المجفف"
+    )
+
+    var feed by remember { mutableStateOf(feeds[0]) }
+    var quantity by remember { mutableStateOf("") }
+    var price by remember { mutableStateOf("") }
+    var supplier by remember { mutableStateOf("") }
+    var message by remember { mutableStateOf("") }
+    var saving by remember { mutableStateOf(false) }
+
+    Column(Modifier.fillMaxSize()) {
+
+        Text("مشتريات الأعلاف", style = MaterialTheme.typography.headlineSmall)
+
+        DropdownField("نوع العلف", feed, feeds, { feed = it })
+
+        OutlinedTextField(
+            quantity, { quantity = it },
+            label = { Text("الكمية بالكغ") },
+            modifier = Modifier.fillMaxWidth(),
+            enabled = !saving
+        )
+
+        OutlinedTextField(
+            price, { price = it },
+            label = { Text("السعر الإجمالي بالدينار (اختياري)") },
+            modifier = Modifier.fillMaxWidth(),
+            enabled = !saving
+        )
+
+        OutlinedTextField(
+            supplier, { supplier = it },
+            label = { Text("المورد (اختياري)") },
+            modifier = Modifier.fillMaxWidth(),
+            enabled = !saving
+        )
+
+        Button(
+            enabled = !saving,
+            onClick = {
+                val q = quantity.toDoubleOrNull()
+                val p = if (price.isBlank()) null else price.toDoubleOrNull()
+
+                if (q == null || q <= 0 || q.isNaN() || q.isInfinite() ||
+                    (price.isNotBlank() &&
+                        (p == null || p < 0 || p.isNaN() || p.isInfinite()))
+                ) {
+                    message = "تحقق من الكمية والسعر."
+                } else {
+                    saving = true
+                    onAdd(feed, q, p, supplier) { success ->
+                        saving = false
+                        if (success) {
+                            quantity = ""
+                            price = ""
+                            supplier = ""
+                            message = "تم تسجيل الشراء بنجاح."
+                        } else {
+                            message = "تعذر تسجيل الشراء."
+                        }
+                    }
+                }
+            },
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text(if (saving) "جارٍ الحفظ..." else "تسجيل الشراء")
+        }
+
+        if (message.isNotBlank()) Text(message)
+
+        HorizontalDivider()
+        Text("سجل المشتريات", style = MaterialTheme.typography.titleMedium)
+
+        LazyColumn(Modifier.weight(1f)) {
+            items(purchases, key = { it.id }) { purchase ->
+                ListItem(
+                    headlineContent = { Text(purchase.feedName) },
+                    supportingContent = {
+                        Text("${purchase.quantityKg} كغ - ${purchase.purchaseDate}")
+                    },
+                    trailingContent = {
+                        Text(
+                            purchase.totalPriceDzd?.let { "$it دج" }
+                                ?: "السعر غير محدد"
+                        )
+                    }
+                )
+                HorizontalDivider()
+            }
+        }
+    }
+}
+
+@Composable
+fun FeedingScreen(
+    purchases: List<FeedPurchase>,
+    consumptions: List<FeedConsumption>,
+    animals: List<Animal>,
+    onAdd: (String, Double, String, Int, String, (Boolean) -> Unit) -> Unit
+) {
+    val feeds = listOf(
+        "الشعير", "التبن", "النخالة",
+        "الذرة", "البرسيم الأخضر", "البرسيم المجفف"
+    )
+
+    val categories = listOf(
+        "القطيع كله", "نعاج", "حوامل",
+        "مرضعات", "فحول", "حملان"
+    )
+
+    var feed by remember { mutableStateOf(feeds[0]) }
+    var category by remember { mutableStateOf(categories[0]) }
+    var quantity by remember { mutableStateOf("") }
+    var count by remember(animals.size) {
+        mutableStateOf(animals.size.toString())
+    }
+    var notes by remember { mutableStateOf("") }
+    var message by remember { mutableStateOf("") }
+    var saving by remember { mutableStateOf(false) }
+
+    val balances = feeds.associateWith { name ->
+        purchases.filter { it.feedName == name }.sumOf { it.quantityKg } -
+            consumptions.filter { it.feedName == name }.sumOf { it.quantityKg }
+    }
+
+    Column(Modifier.fillMaxSize()) {
+
+        Text("التغذية والمخزون", style = MaterialTheme.typography.headlineSmall)
+
+        Text("رصيد الأعلاف", style = MaterialTheme.typography.titleMedium)
+
+        LazyColumn(
+            modifier = Modifier.heightIn(max = 190.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            items(feeds) { name ->
+                val balance = balances[name] ?: 0.0
+
+                Card(Modifier.fillMaxWidth()) {
+                    Row(
+                        Modifier.fillMaxWidth().padding(10.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(name)
+                        Text(
+                            "${"%.2f".format(balance)} كغ",
+                            color = if (balance <= 0)
+                                MaterialTheme.colorScheme.error
+                            else MaterialTheme.colorScheme.primary
+                        )
+                    }
+                }
+            }
+        }
+
+        HorizontalDivider()
+        Text("تسجيل استهلاك", style = MaterialTheme.typography.titleMedium)
+
+        DropdownField("نوع العلف", feed, feeds, { feed = it })
+        OutlinedTextField(
+            quantity, { quantity = it },
+            label = { Text("الكمية المستهلكة بالكغ") },
+            modifier = Modifier.fillMaxWidth(),
+            enabled = !saving
+        )
+
+        DropdownField("الفئة", category, categories, { category = it })
+
+        OutlinedTextField(
+            count, { count = it },
+            label = { Text("عدد الحيوانات") },
+            modifier = Modifier.fillMaxWidth(),
+            enabled = !saving
+        )
+
+        OutlinedTextField(
+            notes, { notes = it },
+            label = { Text("ملاحظات (اختياري)") },
+            modifier = Modifier.fillMaxWidth(),
+            enabled = !saving
+        )
+
+        Button(
+            enabled = !saving,
+            onClick = {
+                val q = quantity.toDoubleOrNull()
+                val c = count.toIntOrNull() ?: 0
+
+                if (q == null || q <= 0 || q.isNaN() || q.isInfinite() || c <= 0) {
+                    message = "أدخل كمية وعدداً صحيحين."
+                } else {
+                    saving = true
+                    message = ""
+
+                    onAdd(feed, q, category, c, notes) { success ->
+                        saving = false
+                        if (success) {
+                            quantity = ""
+                            notes = ""
+                            message = "تم تسجيل الاستهلاك بنجاح."
+                        } else {
+                            message = "لم يتم التسجيل: الرصيد غير كافٍ أو حدث خطأ."
+                        }
+                    }
+                }
+            },
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text(if (saving) "جارٍ التحقق والحفظ..." else "تسجيل الاستهلاك")
+        }
+
+        if (message.isNotBlank()) {
+            Text(
+                message,
+                color = if (message.startsWith("تم"))
+                    MaterialTheme.colorScheme.primary
+                else MaterialTheme.colorScheme.error
+            )
+        }
+
+        HorizontalDivider()
+        Text("سجل الاستهلاك", style = MaterialTheme.typography.titleMedium)
+
+        LazyColumn(Modifier.weight(1f)) {
+            items(consumptions, key = { it.id }) { item ->
+                ListItem(
+                    headlineContent = { Text(item.feedName) },
+                    supportingContent = {
+                        Text(
+                            "${item.quantityKg} كغ - ${item.consumptionDate} - ${item.animalCategory}"
+                        )
+                    }
+                )
+                HorizontalDivider()
+            }
+        }
+    }
+}
+
+@Composable
+fun CareScreen(
+    tasks: List<FarmTask>,
+    onAdd: (String, String, Int, String, (Boolean) -> Unit) -> Unit
+) {
+    var type by remember { mutableStateOf("تنظيف") }
+    var count by remember { mutableStateOf("10") }
+    var notes by remember { mutableStateOf("") }
+    var message by remember { mutableStateOf("") }
+    var saving by remember { mutableStateOf(false) }
+
+    Column(Modifier.fillMaxSize()) {
+
+        Text("الرعاية والمهام", style = MaterialTheme.typography.headlineSmall)
+
+        DropdownField(
+            "نوع المهمة",
+            type,
+            listOf("تنظيف", "تلقيح", "علاج", "فحص بيطري", "قص الصوف", "أخرى"),
+            { type = it }
+        )
+
+        OutlinedTextField(
+            count, { count = it },
+            label = { Text("عدد الحيوانات") },
+            modifier = Modifier.fillMaxWidth(),
+            enabled = !saving
+        )
+
+        OutlinedTextField(
+            notes, { notes = it },
+            label = { Text("ملاحظات") },
+            modifier = Modifier.fillMaxWidth(),
+            enabled = !saving
+        )
+
+        Button(
+            enabled = !saving,
+            onClick = {
+                val c = count.toIntOrNull()
+
+                if (c == null || c <= 0) {
+                    message = "أدخل عدداً صحيحاً."
+                } else {
+                    saving = true
+                    onAdd(type, LocalDate.now().toString(), c, notes) { success ->
+                        saving = false
+                        if (success) {
+                            notes = ""
+                            message = "تم تسجيل المهمة."
+                        } else {
+                            message = "تعذر تسجيل المهمة."
+                        }
+                    }
+                }
+            },
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text(if (saving) "جارٍ الحفظ..." else "إضافة مهمة")
+        }
+
+        if (message.isNotBlank()) Text(message)
+
+        HorizontalDivider()
+
+        LazyColumn(Modifier.weight(1f)) {
+            items(tasks, key = { it.id }) { task ->
+                ListItem(
+                    headlineContent = { Text(task.taskType) },
+                    supportingContent = {
+                        Text(
+                            "${task.taskDate} - عدد الحيوانات: ${task.animalCount}\n${task.notes}"
+                        )
+                    }
+                )
+                HorizontalDivider()
+            }
+        }
+    }
+}
+
+@Composable
+fun AnimalDetailsScreen(
+    animal: Animal,
+    events: List<HerdEvent>,
+    onBack: () -> Unit,
+    onUpdate: (Animal) -> Unit,
+    onAddEvent: (String, String, String) -> Unit,
+    onArchive: () -> Unit
+) {
+    var weight by remember(animal.tag) {
+        mutableStateOf(animal.weightKg.toString())
+    }
+    var category by remember(animal.tag) {
+        mutableStateOf(animal.category)
+    }
+    var birthDate by remember(animal.tag) {
+        mutableStateOf(animal.birthDate)
+    }
+    var mother by remember(animal.tag) {
+        mutableStateOf(animal.motherTag)
+    }
+    var father by remember(animal.tag) {
+        mutableStateOf(animal.fatherTag)
+    }
+
+    var eventType by remember { mutableStateOf("تلقيح") }
+    var eventDate by remember {
+        mutableStateOf(LocalDate.now().toString())
+    }
+    var eventNotes by remember { mutableStateOf("") }
+    var message by remember { mutableStateOf("") }
+
+    Column(
+        Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+
+        Text(
+            "ملف الحيوان: ${animal.tag}",
+            style = MaterialTheme.typography.headlineSmall
+        )
+
+        OutlinedTextField(
+            weight, { weight = it },
+            label = { Text("الوزن بالكغ") },
+            modifier = Modifier.fillMaxWidth()
+        )
+
+        OutlinedTextField(
+            category, { category = it },
+            label = { Text("الفئة") },
+            modifier = Modifier.fillMaxWidth()
+        )
+
+        OutlinedTextField(
+            birthDate, { birthDate = it },
+            label = { Text("تاريخ الميلاد") },
+            modifier = Modifier.fillMaxWidth()
+        )
+
+        OutlinedTextField(
+            mother, { mother = it },
+            label = { Text("رقم الأم") },
+            modifier = Modifier.fillMaxWidth()
+        )
+
+        OutlinedTextField(
+            father, { father = it },
+            label = { Text("رقم الأب") },
+            modifier = Modifier.fillMaxWidth()
+        )
+
+        Button(
+            onClick = {
+                val w = weight.toDoubleOrNull()
+
+                if (w == null || w <= 0 || w.isNaN() || w.isInfinite()) {
+                    message = "أدخل وزناً صحيحاً."
+                } else {
+                    onUpdate(
+                        animal.copy(
+                            weightKg = w,
+                            category = category,
+                            birthDate = birthDate,
+                            motherTag = mother,
+                            fatherTag = father
+                        )
+                    )
+                    message = "جارٍ حفظ التعديلات..."
+                }
+            },
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text("حفظ التعديلات")
+        }
+
+        HorizontalDivider()
+        Text("إضافة حدث للحيوان", style = MaterialTheme.typography.titleMedium)
+
+        OutlinedTextField(
+            eventType, { eventType = it },
+            label = { Text("نوع الحدث") },
+            modifier = Modifier.fillMaxWidth()
+        )
+
+        OutlinedTextField(
+            eventDate, { eventDate = it },
+            label = { Text("التاريخ") },
+            modifier = Modifier.fillMaxWidth()
+        )
+
+        OutlinedTextField(
+            eventNotes, { eventNotes = it },
+            label = { Text("ملاحظات") },
+            modifier = Modifier.fillMaxWidth()
+        )
+
+        Button(
+            onClick = {
+                onAddEvent(eventType, eventDate, eventNotes)
+                eventNotes = ""
+                message = "جارٍ تسجيل الحدث..."
+            },
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text("حفظ الحدث")
+        }
+
+        Text("سجل الأحداث", style = MaterialTheme.typography.titleMedium)
+
+        events.forEach { event ->
+            ListItem(
+                headlineContent = { Text(event.eventType) },
+                supportingContent = {
+                    Text("${event.eventDate} - ${event.notes}")
+                }
+            )
+        }
+
+        Button(
+            onClick = onArchive,
+            colors = ButtonDefaults.buttonColors(
+                containerColor = MaterialTheme.colorScheme.error
+            ),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text("أرشفة الحيوان")
+        }
+
+        OutlinedButton(
+            onClick = onBack,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text("العودة إلى القطيع")
+        }
+
+        if (message.isNotBlank()) Text(message)
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun DropdownField(
+    label: String,
+    value: String,
+    options: List<String>,
+    onSelect: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var expanded by remember { mutableStateOf(false) }
+
+    ExposedDropdownMenuBox(
+        expanded = expanded,
+        onExpandedChange = { expanded = !expanded },
+        modifier = modifier
+    ) {
+        OutlinedTextField(
+            value = value,
+            onValueChange = {},
+            readOnly = true,
+            label = { Text(label) },
+            trailingIcon = {
+                ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded)
+            },
+            modifier = Modifier.menuAnchor().fillMaxWidth()
+        )
+
+        ExposedDropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false }
+        ) {
+            options.forEach { option ->
+                DropdownMenuItem(
+                    text = { Text(option) },
+                    onClick = {
+                        onSelect(option)
+                        expanded = false
+                    }
+                )
+            }
+        }
+    }
+}
+
