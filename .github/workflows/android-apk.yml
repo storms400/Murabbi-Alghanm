@@ -23,7 +23,7 @@ jobs:
       - name: Extract Android project
         run: unzip -o MurabbiAlghanmAndroid_Source_FIXED3.zip -d .
 
-            - name: Build APK
+      - name: Build APK
         run: gradle --no-daemon :app:assembleDebug
 
       - uses: actions/upload-artifact@v4
