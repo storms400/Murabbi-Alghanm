@@ -45,8 +45,7 @@ jobs:
                                     2 -> androidx.compose.material.icons.Icons.Default.ShoppingCart
                                     3 -> androidx.compose.material.icons.Icons.Default.Inventory
                                     else -> androidx.compose.material.icons.Icons.Default.CalendarMonth
-                                },
-                                contentDescription = title
+                                }
                             )
                         },"""
           new = """                        icon = {
