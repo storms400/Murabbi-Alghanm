@@ -56,8 +56,6 @@ jobs:
                                     2 -> "🛒"
                                     3 -> "🌾"
                                     else -> "📅"
-                                },
-                                contentDescription = title
                             )
                         },"""
           if old not in s:
