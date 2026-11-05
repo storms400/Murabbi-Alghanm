@@ -61,7 +61,7 @@ jobs:
                                 }
                             )
                         },
-"""
+          """
           s = s[:icon_start] + replacement + s[label_start:]
           p.write_text(s)
           print("Navigation icons replaced with emoji")
