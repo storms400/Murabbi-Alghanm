@@ -1,5 +1,6 @@
 
 
+
 name: Build Android APK
 
 on:
@@ -37,7 +38,7 @@ jobs:
 
           s, count = re.subn(
               r'(?m)^(\s*applicationId\s*=\s*)["\'][^"\']+["\']',
-              r'\1"dz.murabbi.alghanm.test"',
+              r'\1"dz.murabbi.alghanm.test2"',
               s
           )
 
@@ -45,7 +46,7 @@ jobs:
               raise SystemExit("ERROR: Could not set applicationId exactly once")
 
           p.write_text(s)
-          print("TEST APPLICATION ID: dz.murabbi.alghanm.test")
+          print("TEST APPLICATION ID: dz.murabbi.alghanm.test2")
           PY
 
           grep -n applicationId app/build.gradle.kts
@@ -55,5 +56,5 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: MurabbiAlghanm-Test-APK
+          name: MurabbiAlghanm-Test2-APK
           path: app/build/outputs/apk/debug/app-debug.apk
