@@ -50,16 +50,13 @@ jobs:
           EOF
           python3 - <<'PY'
           from pathlib import Path
-          import xml.etree.ElementTree as ET
+          import re
           p = Path("app/src/main/AndroidManifest.xml")
-          tree = ET.parse(p)
-          root = tree.getroot()
-          ns = "{http://schemas.android.com/apk/res/android}"
-          app = root.find("application")
-          if app is None:
-              raise SystemExit("AndroidManifest.xml has no application element")
-          app.set(ns + "icon", "@drawable/ic_sheep")
-          tree.write(p, encoding="utf-8", xml_declaration=True)
+          s = p.read_text()
+          s, count = re.subn(r'<application\\b', '<application android:icon="@drawable/ic_sheep"', s, count=1)
+          if count != 1:
+              raise SystemExit("Could not locate application element in AndroidManifest.xml")
+          p.write_text(s)
           print("Sheep icon configured")
           PY
 
