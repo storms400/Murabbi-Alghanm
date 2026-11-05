@@ -7,7 +7,7 @@ name: Build Android APK
 on:
   workflow_dispatch:
   push:
-    branches: [main]
+    branches: [main, ui-professional-sheep-icon]
 
 jobs:
   build:
@@ -28,6 +28,9 @@ jobs:
       - name: Extract Android project
         run: unzip -o MurabbiAlghanm_Rebuilt_Source.zip -d .
 
+      - name: Apply updated Arabic dashboard
+        run: cp MainActivity.txt app/src/main/java/dz/murabbi/alghanm/MainActivity.kt
+
       - name: Force separate test application ID
         run: |
           python3 - <<'PY'
@@ -39,7 +42,7 @@ jobs:
 
           s, count = re.subn(
               r'(?m)^(\s*applicationId\s*=\s*)["\'][^"\']+["\']',
-              r'\1"dz.murabbi.alghanm.test3"',
+              r'\1"dz.murabbi.alghanm.test4"',
               s
           )
 
@@ -57,5 +60,5 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: MurabbiAlghanm-Test3-APK
+          name: MurabbiAlghanm-Test4-APK
           path: app/build/outputs/apk/debug/app-debug.apk
