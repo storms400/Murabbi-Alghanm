@@ -4,10 +4,12 @@
 
 name: Build Android APK
 
-on:
+"on":
   workflow_dispatch:
   push:
-    branches: [main, ui-professional-sheep-icon]
+    branches:
+      - "main"
+      - "ui-professional-sheep-icon"
 
 jobs:
   build:
