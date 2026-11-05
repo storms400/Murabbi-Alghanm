@@ -125,3 +125,5 @@ jobs:
         with:
           name: MurabbiAlghanm-Test4-APK
           path: app/build/outputs/apk/debug/app-debug.apk
+
+# Rebuild the professional sheep-icon test APK
