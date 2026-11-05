@@ -31,6 +31,38 @@ jobs:
       - name: Apply updated Arabic dashboard
         run: cp MainActivity.txt app/src/main/java/dz/murabbi/alghanm/MainActivity.kt
 
+      - name: Add sheep app icon
+        run: |
+          mkdir -p app/src/main/res/drawable
+          cat > app/src/main/res/drawable/ic_sheep.xml <<'EOF'
+          <vector xmlns:android="http://schemas.android.com/apk/res/android"
+              android:width="108dp" android:height="108dp"
+              android:viewportWidth="108" android:viewportHeight="108">
+              <path android:fillColor="#126B37" android:pathData="M0,0h108v108h-108z"/>
+              <path android:fillColor="#F6DCA8" android:pathData="M18,49 C7,37 12,27 24,32 C28,20 40,21 45,28 C53,16 66,20 68,29 C81,22 91,31 87,41 C100,46 96,59 87,62 C91,75 80,83 70,78 C62,91 48,88 45,80 C31,88 20,79 24,68 C12,66 10,55 18,49z"/>
+              <path android:fillColor="#F3C7A7" android:pathData="M18,45 C3,27 7,20 23,31 L34,44 L28,58z M90,45 C105,27 101,20 85,31 L74,44 L80,58z"/>
+              <path android:fillColor="#FFF4DD" android:pathData="M30,42 C30,31 43,29 51,34 C60,27 77,34 78,47 C82,64 70,79 54,81 C37,78 26,61 30,42z"/>
+              <path android:fillColor="#E9B98F" android:pathData="M43,58 C43,52 49,49 54,52 C60,49 66,53 66,59 C66,67 59,72 54,72 C48,71 43,66 43,58z"/>
+              <path android:fillColor="#49352B" android:pathData="M39,48a3,3 0,1 0,6 0a3,3 0,1 0,-6 0 M63,48a3,3 0,1 0,6 0a3,3 0,1 0,-6 0"/>
+              <path android:fillColor="#B66E61" android:pathData="M50,60 Q54,56 58,60 Q57,65 54,65 Q50,64 50,60z"/>
+              <path android:fillColor="#D9A86D" android:pathData="M49,77 Q54,82 59,77 L58,84 Q54,89 50,84z"/>
+          </vector>
+          EOF
+          python3 - <<'PY'
+          from pathlib import Path
+          import xml.etree.ElementTree as ET
+          p = Path("app/src/main/AndroidManifest.xml")
+          tree = ET.parse(p)
+          root = tree.getroot()
+          ns = "{http://schemas.android.com/apk/res/android}"
+          app = root.find("application")
+          if app is None:
+              raise SystemExit("AndroidManifest.xml has no application element")
+          app.set(ns + "icon", "@drawable/ic_sheep")
+          tree.write(p, encoding="utf-8", xml_declaration=True)
+          print("Sheep icon configured")
+          PY
+
       - name: Force separate test application ID
         run: |
           python3 - <<'PY'
