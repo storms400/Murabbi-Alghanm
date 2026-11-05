@@ -10,6 +10,7 @@ name: Build Android APK
     branches:
       - "main"
       - "ui-professional-sheep-icon"
+      - "integrated-farm-management"
 
 jobs:
   build:
@@ -107,7 +108,7 @@ jobs:
 
           s, count = re.subn(
               r'(?m)^(\s*applicationId\s*=\s*)["\'][^"\']+["\']',
-              r'\1"dz.murabbi.alghanm.test4"',
+              r'\1"dz.murabbi.alghanm.test5"',
               s
           )
 
@@ -125,7 +126,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: MurabbiAlghanm-Test4-APK
+          name: MurabbiAlghanm-Test5-APK
           path: app/build/outputs/apk/debug/app-debug.apk
 
 # Rebuild the professional sheep-icon test APK
