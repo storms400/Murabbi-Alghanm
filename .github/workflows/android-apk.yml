@@ -35,20 +35,20 @@ jobs:
         run: |
           python3 - <<'PY'
           from pathlib import Path
+
           p = Path("app/src/main/java/dz/murabbi/alghanm/MainActivity.kt")
           s = p.read_text()
-          old = """                        icon = {
-                            Icon(
-                                imageVector = when (index) {
-                                    0 -> androidx.compose.material.icons.Icons.Default.Home
-                                    1 -> androidx.compose.material.icons.Icons.Default.Pets
-                                    2 -> androidx.compose.material.icons.Icons.Default.ShoppingCart
-                                    3 -> androidx.compose.material.icons.Icons.Default.Inventory
-                                    else -> androidx.compose.material.icons.Icons.Default.CalendarMonth
-                                }
-                            )
-                        },"""
-          new = """                        icon = {
+
+          item_start = s.find("NavigationBarItem(")
+          if item_start < 0:
+              raise SystemExit("NavigationBarItem not found")
+
+          icon_start = s.find("                        icon = {", item_start)
+          label_start = s.find("                        label = { Text(title) }", icon_start)
+          if icon_start < 0 or label_start < 0:
+              raise SystemExit("Navigation icon boundaries not found")
+
+          replacement = """                        icon = {
                             Text(
                                 text = when (index) {
                                     0 -> "🏠"
@@ -56,11 +56,12 @@ jobs:
                                     2 -> "🛒"
                                     3 -> "🌾"
                                     else -> "📅"
+                                }
                             )
-                        },"""
-          if old not in s:
-              raise SystemExit("Navigation icon block not found; source left unchanged")
-          p.write_text(s.replace(old, new, 1))
+                        },
+"""
+          s = s[:icon_start] + replacement + s[label_start:]
+          p.write_text(s)
           print("Navigation icons replaced with emoji")
           PY
 
