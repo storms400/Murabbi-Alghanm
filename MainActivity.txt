@@ -1206,7 +1206,7 @@ fun SmartFarmPanel(
     val upcoming = tasks.mapNotNull { task ->
         val date = runCatching { LocalDate.parse(task.taskDate) }.getOrNull() ?: return@mapNotNull null
         val days = ChronoUnit.DAYS.between(today, date)
-        if (!task.completed && days <= 7) task to days else null
+        if (!task.completed && days <= 7L) task to days else null
     }.sortedBy { it.second }
 
     fun csv(value: String) = "\"" + value.replace("\"", "\"\"").replace("\n", " ") + "\""
