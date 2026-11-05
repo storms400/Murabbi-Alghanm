@@ -31,6 +31,42 @@ jobs:
       - name: Apply updated Arabic dashboard
         run: cp MainActivity.txt app/src/main/java/dz/murabbi/alghanm/MainActivity.kt
 
+      - name: Fix unavailable navigation icons
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("app/src/main/java/dz/murabbi/alghanm/MainActivity.kt")
+          s = p.read_text()
+          old = """                        icon = {
+                            Icon(
+                                imageVector = when (index) {
+                                    0 -> androidx.compose.material.icons.Icons.Default.Home
+                                    1 -> androidx.compose.material.icons.Icons.Default.Pets
+                                    2 -> androidx.compose.material.icons.Icons.Default.ShoppingCart
+                                    3 -> androidx.compose.material.icons.Icons.Default.Inventory
+                                    else -> androidx.compose.material.icons.Icons.Default.CalendarMonth
+                                },
+                                contentDescription = title
+                            )
+                        },"""
+          new = """                        icon = {
+                            Text(
+                                text = when (index) {
+                                    0 -> "🏠"
+                                    1 -> "🐑"
+                                    2 -> "🛒"
+                                    3 -> "🌾"
+                                    else -> "📅"
+                                },
+                                contentDescription = title
+                            )
+                        },"""
+          if old not in s:
+              raise SystemExit("Navigation icon block not found; source left unchanged")
+          p.write_text(s.replace(old, new, 1))
+          print("Navigation icons replaced with emoji")
+          PY
+
       - name: Add sheep app icon
         run: |
           mkdir -p app/src/main/res/drawable
