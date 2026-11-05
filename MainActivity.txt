@@ -33,7 +33,15 @@ class MainActivity : ComponentActivity() {
                 FarmViewModel(db.farmDao())
             }
 
-            MaterialTheme {
+            MaterialTheme(
+                colorScheme = lightColorScheme(
+                    primary = androidx.compose.ui.graphics.Color(0xFF187A45),
+                    onPrimary = androidx.compose.ui.graphics.Color.White,
+                    secondary = androidx.compose.ui.graphics.Color(0xFF77A95B),
+                    background = androidx.compose.ui.graphics.Color(0xFFF4F8F2),
+                    surface = androidx.compose.ui.graphics.Color.White
+                )
+            ) {
                 CompositionLocalProvider(
                     LocalLayoutDirection provides LayoutDirection.Rtl
                 ) {
@@ -368,34 +376,100 @@ fun HomeScreen(
 ) {
     val totalPurchased = purchases.sumOf { it.quantityKg }
     val totalConsumed = consumptions.sumOf { it.quantityKg }
+    val stock = (totalPurchased - totalConsumed).coerceAtLeast(0.0)
+    val formatter = java.text.DecimalFormat("#,##0.##")
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        verticalArrangement = Arrangement.spacedBy(10.dp)
+        verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
         item {
-            Text("لوحة المزرعة", style = MaterialTheme.typography.headlineSmall)
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.primary
+                ),
+                shape = MaterialTheme.shapes.extraLarge
+            ) {
+                Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text("مرحباً بك في مزرعتك", color = androidx.compose.ui.graphics.Color.White,
+                        style = MaterialTheme.typography.titleMedium)
+                    Text("مربي الغنم", color = androidx.compose.ui.graphics.Color.White,
+                        style = MaterialTheme.typography.headlineMedium)
+                    Text("تابع القطيع والأعلاف من مكان واحد",
+                        color = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.88f))
+                }
+            }
         }
         item {
-            SummaryCard("عدد الحيوانات النشطة", animals.size.toString())
+            Text("ملخص المزرعة", style = MaterialTheme.typography.titleLarge,
+                color = MaterialTheme.colorScheme.primary)
         }
         item {
-            SummaryCard("عدد المشتريات", purchases.size.toString())
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                DashboardMetric("القطيع النشط", animals.size.toString(), "🐑", Modifier.weight(1f))
+                DashboardMetric("مخزون العلف", "${formatter.format(stock)} كغ", "🌾", Modifier.weight(1f))
+            }
         }
         item {
-            SummaryCard("إجمالي العلف المشترى", "$totalPurchased كغ")
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                DashboardMetric("المشتريات", purchases.size.toString(), "🛒", Modifier.weight(1f))
+                DashboardMetric("المهام", tasks.size.toString(), "📋", Modifier.weight(1f))
+            }
         }
         item {
-            SummaryCard("إجمالي العلف المستهلك", "$totalConsumed كغ")
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                shape = MaterialTheme.shapes.large
+            ) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("حركة الأعلاف", style = MaterialTheme.typography.titleMedium)
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text("إجمالي المشتريات")
+                        Text("${formatter.format(totalPurchased)} كغ",
+                            color = MaterialTheme.colorScheme.primary)
+                    }
+                    HorizontalDivider()
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text("إجمالي الاستهلاك")
+                        Text("${formatter.format(totalConsumed)} كغ",
+                            color = MaterialTheme.colorScheme.secondary)
+                    }
+                }
+            }
         }
         item {
-            SummaryCard("المهام المسجلة", tasks.size.toString())
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
+                shape = MaterialTheme.shapes.large
+            ) {
+                Column(Modifier.padding(16.dp)) {
+                    Text("نصيحة", style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.primary)
+                    Text("سجّل المشتريات والاستهلاك بانتظام لمتابعة رصيد الأعلاف بدقة.")
+                }
+            }
         }
-        item {
-            Text(
-                "ستُضاف حسابات الاحتياجات الغذائية بعد تحديد أوزان الحيوانات وجودة الأعلاف.",
-                color = MaterialTheme.colorScheme.primary
-            )
+    }
+}
+
+@Composable
+fun DashboardMetric(title: String, value: String, emoji: String, modifier: Modifier = Modifier) {
+    Card(
+        modifier = modifier,
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        shape = MaterialTheme.shapes.large
+    ) {
+        Column(
+            Modifier.fillMaxWidth().padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(emoji, style = MaterialTheme.typography.headlineMedium)
+            Text(value, style = MaterialTheme.typography.titleLarge,
+                color = MaterialTheme.colorScheme.primary)
+            Text(title, style = MaterialTheme.typography.bodyMedium)
         }
     }
 }
