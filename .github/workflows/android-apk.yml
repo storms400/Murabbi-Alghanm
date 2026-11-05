@@ -53,7 +53,7 @@ jobs:
           import re
           p = Path("app/src/main/AndroidManifest.xml")
           s = p.read_text()
-          s, count = re.subn(r'<application\\b', '<application android:icon="@drawable/ic_sheep"', s, count=1)
+          s, count = re.subn(r'<application\b', '<application android:icon="@drawable/ic_sheep"', s, count=1)
           if count != 1:
               raise SystemExit("Could not locate application element in AndroidManifest.xml")
           p.write_text(s)
@@ -79,7 +79,7 @@ jobs:
               raise SystemExit("ERROR: Could not set applicationId exactly once")
 
           p.write_text(s)
-          print("TEST APPLICATION ID: dz.murabbi.alghanm.test3")
+          print("TEST APPLICATION ID: dz.murabbi.alghanm.test4")
           PY
 
           grep -n applicationId app/build.gradle.kts
