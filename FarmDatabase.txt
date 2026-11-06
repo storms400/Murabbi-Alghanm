@@ -262,7 +262,7 @@ abstract class FarmDao {
         val mother = animalByTag(record.femaleTag) ?: return false
         if (record.eventType == "ولادة") {
             val father = if (record.maleTag.isBlank()) null else animalByTag(record.maleTag) ?: return false
-            val tags = record.offspringTags.split(',', '\\n', ';').map { it.trim() }.filter { it.isNotBlank() }
+            val tags = record.offspringTags.split(',', '\n', ';').map { it.trim() }.filter { it.isNotBlank() }
             if (record.offspringCount != tags.size || tags.isEmpty() || tags.distinct().size != tags.size) return false
             if (tags.any { it == record.femaleTag || it == record.maleTag || animalByTag(it) == null }) return false
             tags.forEach { child ->
