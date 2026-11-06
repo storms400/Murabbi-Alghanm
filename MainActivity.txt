@@ -206,6 +206,12 @@ class FarmViewModel(private val dao: FarmDao) : ViewModel() {
     fun addFinance(entry: FinanceEntry, onResult: (Boolean) -> Unit) {
         viewModelScope.launch { onResult(runCatching { dao.addFinanceEntry(entry); dao.addAuditEntry(AuditEntry(action = "إضافة", recordType = "مالية", details = entry.entryType + " • " + entry.amountDzd + " دج")) }.isSuccess) }
     }
+    fun updateFinance(entry: FinanceEntry, onResult: (Boolean) -> Unit) {
+        viewModelScope.launch { onResult(runCatching { dao.updateFinanceWithAudit(entry) }.isSuccess) }
+    }
+    fun deleteFinance(id: Long, onResult: (Boolean) -> Unit) {
+        viewModelScope.launch { onResult(runCatching { dao.deleteFinanceWithAudit(id) }.isSuccess) }
+    }
 
     fun addAnimal(
         tag: String,
@@ -543,6 +549,8 @@ fun FarmScreen(vm: FarmViewModel) {
                                 onDeleteReproduction = { id, result -> vm.deleteReproduction(id, result) },
                                 onDeleteMedicineStock = { id, result -> vm.deleteMedicineStock(id, result) },
                                 onAddFinance = { entry, result -> vm.addFinance(entry, result) },
+                                onUpdateFinance = { entry, result -> vm.updateFinance(entry, result) },
+                                onDeleteFinance = { id, result -> vm.deleteFinance(id, result) },
                                 onAddVaccineRecord = { record, result -> vm.addVaccineRecord(record, result) },
                                 onAddVaccineCampaign = { campaign, result -> vm.addVaccineCampaign(campaign, result) },
                                 onSaveCareStatus = { status, result -> vm.saveCareStatus(status, result) },
@@ -1701,6 +1709,8 @@ fun SmartFarmPanel(
     onDeleteReproduction: (Long, (Boolean) -> Unit) -> Unit,
     onDeleteMedicineStock: (Long, (Boolean) -> Unit) -> Unit,
     onAddFinance: (FinanceEntry, (Boolean) -> Unit) -> Unit,
+    onUpdateFinance: (FinanceEntry, (Boolean) -> Unit) -> Unit,
+    onDeleteFinance: (Long, (Boolean) -> Unit) -> Unit,
     onAddVaccineRecord: (VaccineDoseRecord, (Boolean) -> Unit) -> Unit,
     onAddVaccineCampaign: (VaccineCampaign, (Boolean) -> Unit) -> Unit,
     onSaveCareStatus: (AnimalCareStatus, (Boolean) -> Unit) -> Unit,
@@ -1745,6 +1755,7 @@ fun SmartFarmPanel(
     var financeCategory by remember { mutableStateOf("أدوية") }
     var financeAmount by remember { mutableStateOf("") }
     var financeDescription by remember { mutableStateOf("") }
+    var editingFinanceId by remember { mutableLongStateOf(0L) }
     var medicineName by remember { mutableStateOf("") }
     var medicineQuantity by remember { mutableStateOf("") }
     var medicineExpiry by remember { mutableStateOf(today.plusMonths(6).toString()) }
@@ -2202,10 +2213,12 @@ fun SmartFarmPanel(
                     onClick = {
                         val amount = financeAmount.replace(',', '.').toDoubleOrNull() ?: 0.0
                         saving = true
-                        onAddFinance(FinanceEntry(entryType = financeType, category = financeCategory, amountDzd = amount, entryDate = today.toString(), description = financeDescription.trim())) { ok ->
+                        val entry = FinanceEntry(id = editingFinanceId, entryType = financeType, category = financeCategory, amountDzd = amount, entryDate = today.toString(), description = financeDescription.trim())
+                        val save: ((Boolean) -> Unit) -> Unit = if (editingFinanceId > 0L) ({ result -> onUpdateFinance(entry, result) }) else ({ result -> onAddFinance(entry, result) })
+                        save { ok ->
                             saving = false
-                            message = if (ok) "تم تسجيل الحركة المالية." else "تعذر الحفظ."
-                            if (ok) { financeAmount = ""; financeDescription = "" }
+                            message = if (ok) (if (editingFinanceId > 0L) "تم تحديث الحركة المالية." else "تم تسجيل الحركة المالية.") else "تعذر الحفظ."
+                            if (ok) { financeAmount = ""; financeDescription = ""; editingFinanceId = 0L }
                         }
                     }, modifier = Modifier.fillMaxWidth()) { Text("حفظ الحركة المالية") }
                 val income = financeEntries.filter { it.entryType == "إيراد" }.sumOf { it.amountDzd }
@@ -2213,7 +2226,28 @@ fun SmartFarmPanel(
                 SummaryCard("إجمالي الإيرادات", "${"%.0f".format(Locale.US, income)} دج")
                 SummaryCard("إجمالي المصروفات", "${"%.0f".format(Locale.US, expense)} دج")
                 SummaryCard("الصافي المسجل", "${"%.0f".format(Locale.US, income-expense)} دج")
-                financeEntries.forEach { item -> ListItem(headlineContent = { Text("${item.entryType} • ${item.category}") }, supportingContent = { Text("${item.entryDate} • ${item.description}") }, trailingContent = { Text("${"%.0f".format(Locale.US, item.amountDzd)} دج") }) }
+                financeEntries.forEach { item ->
+                    ListItem(
+                        headlineContent = { Text("${item.entryType} • ${item.category}") },
+                        supportingContent = { Text("${item.entryDate} • ${item.description}") },
+                        trailingContent = {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text("${"%.0f".format(Locale.US, item.amountDzd)} دج")
+                                TextButton(onClick = {
+                                    editingFinanceId = item.id
+                                    financeType = item.entryType
+                                    financeCategory = item.category
+                                    financeAmount = item.amountDzd.toString()
+                                    financeDescription = item.description
+                                    message = "تعديل الحركة المالية المحددة ثم اضغط حفظ."
+                                }) { Text("تعديل") }
+                                TextButton(onClick = {
+                                    onDeleteFinance(item.id) { ok -> message = if (ok) "تم حذف الحركة المالية." else "تعذر حذف الحركة المالية." }
+                                }) { Text("حذف") }
+                            }
+                        }
+                    )
+                }
                 if (message.isNotBlank()) Text(message)
             }
             else -> {
