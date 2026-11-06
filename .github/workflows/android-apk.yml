@@ -11,6 +11,8 @@ name: Build Android APK
       - "main"
       - "ui-professional-sheep-icon"
       - "integrated-farm-management"
+      - "scientific-sheep-guide"
+      - "simple-navigation-redesign"
 
 jobs:
   build:
@@ -108,7 +110,7 @@ jobs:
 
           s, count = re.subn(
               r'(?m)^(\s*applicationId\s*=\s*)["\'][^"\']+["\']',
-              r'\1"dz.murabbi.alghanm.test5"',
+              r'\1"dz.murabbi.alghanm.redesign"',
               s
           )
 
@@ -116,7 +118,7 @@ jobs:
               raise SystemExit("ERROR: Could not set applicationId exactly once")
 
           p.write_text(s)
-          print("TEST APPLICATION ID: dz.murabbi.alghanm.test5")
+          print("TEST APPLICATION ID: dz.murabbi.alghanm.redesign")
           PY
 
           grep -n applicationId app/build.gradle.kts
@@ -126,7 +128,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: MurabbiAlghanm-Test5-APK
+          name: MurabbiAlghanm-Redesign-Test6-APK
           path: app/build/outputs/apk/debug/app-debug.apk
 
 # Rebuild the professional sheep-icon test APK
