@@ -569,7 +569,10 @@ fun FarmScreen(vm: FarmViewModel, dao: FarmDao, onLock: () -> Unit = {}) {
                     screenMessage = "تم إنشاء نسخة احتياطية مشفرة تشمل قاعدة البيانات والصور."
                     (backupContext as? ComponentActivity)?.recreate()
                 }
-                .onFailure { screenMessage = "فشل إنشاء النسخة: ${it.message ?: "خطأ غير معروف"}" }
+                .onFailure {
+                    screenMessage = "فشل إنشاء النسخة: ${it.message ?: "خطأ غير معروف"}"
+                    (backupContext as? ComponentActivity)?.recreate()
+                }
             backupBusy = false
         }
     }
@@ -621,7 +624,10 @@ fun FarmScreen(vm: FarmViewModel, dao: FarmDao, onLock: () -> Unit = {}) {
                                 screenMessage = "تمت الاستعادة والتحقق من قاعدة البيانات."
                                 (backupContext as? ComponentActivity)?.recreate()
                             }
-                            .onFailure { screenMessage = "فشلت الاستعادة: ${it.message ?: "كلمة مرور خاطئة أو ملف تالف"}" }
+                            .onFailure {
+                                screenMessage = "فشلت الاستعادة: ${it.message ?: "كلمة مرور خاطئة أو ملف تالف"}"
+                                (backupContext as? ComponentActivity)?.recreate()
+                            }
                         backupBusy = false
                     }
                 }
