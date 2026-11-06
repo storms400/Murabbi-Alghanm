@@ -42,6 +42,46 @@ import java.time.LocalDate
 import java.time.temporal.ChronoUnit
 import java.util.Locale
 
+private data class VaccinePlanItem(
+    val animalTag: String, val key: String, val title: String,
+    val dueDate: LocalDate, val guidance: String
+)
+
+class VaccineReminderReceiver : BroadcastReceiver() {
+    override fun onReceive(context: Context, intent: Intent) {
+        val channelId = "sheep_vaccination_reminders"
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as android.app.NotificationManager
+            manager.createNotificationChannel(android.app.NotificationChannel(channelId, "تنبيهات التطعيمات", android.app.NotificationManager.IMPORTANCE_HIGH))
+        }
+        val notification = NotificationCompat.Builder(context, channelId)
+            .setSmallIcon(android.R.drawable.ic_dialog_info)
+            .setContentTitle(intent.getStringExtra("title") ?: "موعد تطعيم")
+            .setContentText(intent.getStringExtra("body") ?: "راجع برنامج التطعيم")
+            .setPriority(NotificationCompat.PRIORITY_HIGH).setAutoCancel(true).build()
+        try { NotificationManagerCompat.from(context).notify(intent.getIntExtra("notificationId", 1001), notification) }
+        catch (_: SecurityException) { }
+    }
+}
+
+private fun scheduleVaccineAlarm(context: Context, tag: String, key: String, title: String, due: LocalDate, day: LocalDate, label: String) {
+    val alarm = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+    val code = (tag + key + label).hashCode()
+    val intent = Intent(context, VaccineReminderReceiver::class.java).apply {
+        putExtra("title", "تذكير تطعيم: " + tag)
+        putExtra("body", title + " — " + label + ". موعد الاستحقاق: " + due)
+        putExtra("notificationId", code)
+    }
+    val pending = PendingIntent.getBroadcast(context, code, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+    val millis = LocalDateTime.of(day, java.time.LocalTime.of(8, 0)).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+    if (millis <= System.currentTimeMillis()) return
+    try {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && alarm.canScheduleExactAlarms())
+            alarm.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, millis, pending)
+        else alarm.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, millis, pending)
+    } catch (_: SecurityException) { alarm.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, millis, pending) }
+}
+
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
