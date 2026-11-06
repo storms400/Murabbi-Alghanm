@@ -330,6 +330,7 @@ abstract class FarmDao {
     @Insert abstract suspend fun addAuditEntry(entry: AuditEntry)
     @Query("SELECT * FROM audit_entries ORDER BY createdAt DESC") abstract fun auditEntries(): Flow<List<AuditEntry>>
     @Insert(onConflict = OnConflictStrategy.REPLACE) abstract suspend fun saveAppUser(user: AppUser)
+    @Query("SELECT * FROM app_users WHERE username = 'owner' AND active = 1 LIMIT 1") abstract suspend fun activeOwner(): AppUser?
     @Query("SELECT * FROM app_users WHERE active = 1 ORDER BY username") abstract fun appUsers(): Flow<List<AppUser>>
     @Insert abstract suspend fun addFinanceEntry(entry: FinanceEntry)
     @Update abstract suspend fun updateFinanceEntry(entry: FinanceEntry)
@@ -441,7 +442,7 @@ abstract class FarmDatabase : RoomDatabase() {
                 INSTANCE ?: Room.databaseBuilder(
                     context.applicationContext,
                     FarmDatabase::class.java,
-                    "mawashi_pro_v9_standalone20261106.db"
+                    "mawashi_pro_v10_standalone20261106.db"
                 )
                     .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
                     .build()
