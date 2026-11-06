@@ -242,7 +242,7 @@ fun FarmScreen(vm: FarmViewModel) {
     var selectedAnimal by remember { mutableStateOf<Animal?>(null) }
     var screenMessage by remember { mutableStateOf("") }
 
-    val tabs = listOf("الرئيسية", "القطيع", "المشتريات", "التغذية", "الرعاية")
+    val tabs = listOf("الرئيسية", "القطيع", "المشتريات", "التغذية", "الإدارة")
 
     Scaffold(
         topBar = {
@@ -365,9 +365,16 @@ fun FarmScreen(vm: FarmViewModel) {
                         }
                     )
 
-                    else -> CareScreen(
+                    else -> SmartFarmPanel(
+                        animals = animals,
+                        purchases = purchases,
+                        consumptions = consumptions,
                         tasks = tasks,
-                        onAdd = { type, date, count, notes, result ->
+                        events = events,
+                        onAddEvent = { tag, type, date, notes, result ->
+                            vm.addAnimalEvent(tag, type, date, notes, result)
+                        },
+                        onAddTask = { type, date, count, notes, result ->
                             vm.addTask(type, date, count, notes, result)
                         }
                     )
@@ -451,17 +458,6 @@ fun HomeScreen(
                     }
                 }
             }
-        }
-        item {
-            SmartFarmPanel(
-                animals = animals,
-                purchases = purchases,
-                consumptions = consumptions,
-                tasks = tasks,
-                events = events,
-                onAddEvent = onAddEvent,
-                onAddTask = onAddTask
-            )
         }
         item {
             Card(
@@ -1158,7 +1154,7 @@ fun SmartFarmPanel(
 ) {
     val context = LocalContext.current
     val today = LocalDate.now()
-    var section by remember { mutableStateOf("التغذية الذكية") }
+    var section by remember { mutableStateOf("القائمة") }
     var feedGroup by remember { mutableStateOf("القطيع كله") }
     var dailyPerHead by remember { mutableStateOf("") }
     var targetTag by remember(animals) { mutableStateOf(animals.firstOrNull()?.tag ?: "عام") }
@@ -1205,16 +1201,52 @@ fun SmartFarmPanel(
         events.forEach { appendLine("حدث,${csv(it.animalTag)},${csv(it.eventDate)},${csv("${it.eventType} - ${it.notes}")}") }
     }
 
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Text("الإدارة الذكية للمزرعة", style = MaterialTheme.typography.titleLarge,
-            color = MaterialTheme.colorScheme.primary)
-        Text("أدوات إضافية مدمجة مع بيانات القطيع الحالية.", style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant)
-        DropdownField(
-            "القسم الذكي", section,
-            listOf("التغذية الذكية", "المرشد العلمي", "الصحة والتناسل", "الوزن والنمو", "المواعيد والتنبيهات", "المالية والتقارير"),
-            { section = it }
-        )
+    Column(
+        Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        if (section == "القائمة") {
+            Text("إدارة المزرعة", style = MaterialTheme.typography.headlineSmall,
+                color = MaterialTheme.colorScheme.primary)
+            Text("اختر الخدمة التي تريدها مباشرة.", style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
+            val sections = listOf(
+                "التغذية الذكية" to "🌾",
+                "المرشد العلمي" to "📘",
+                "الصحة والتناسل" to "🩺",
+                "الوزن والنمو" to "⚖️",
+                "المواعيد والتنبيهات" to "📅",
+                "المالية والتقارير" to "💰",
+                "الرعاية اليومية" to "🧹"
+            )
+            sections.chunked(2).forEach { pair ->
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    pair.forEach { (name, emoji) ->
+                        Card(
+                            onClick = { section = name },
+                            modifier = Modifier.weight(1f),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+                        ) {
+                            Column(
+                                Modifier.fillMaxWidth().padding(14.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Text(emoji, style = MaterialTheme.typography.headlineMedium)
+                                Text(name, style = MaterialTheme.typography.titleSmall,
+                                    color = MaterialTheme.colorScheme.primary)
+                            }
+                        }
+                    }
+                    if (pair.size == 1) Spacer(Modifier.weight(1f))
+                }
+            }
+        } else {
+            OutlinedButton(onClick = { section = "القائمة" }) {
+                Text("← جميع أقسام الإدارة")
+            }
+            Text(section, style = MaterialTheme.typography.headlineSmall,
+                color = MaterialTheme.colorScheme.primary)
+        }
 
         when (section) {
             "المرشد العلمي" -> ScientificSheepGuide(animals = animals)
@@ -1366,7 +1398,13 @@ fun SmartFarmPanel(
                     HorizontalDivider()
                 }
             }
-            else -> {
+            "الرعاية اليومية" -> CareScreen(
+                tasks = tasks,
+                onAdd = { type, date, count, notes, result ->
+                    onAddTask(type, date, count, notes, result)
+                }
+            )
+            "المالية والتقارير" -> {
                 Text("ملخص مالي تقديري", style = MaterialTheme.typography.titleMedium)
                 SummaryCard("تكلفة مشتريات الأعلاف المسجلة", "${"%.0f".format(Locale.US, totalFeedCost)} دج")
                 SummaryCard("المصاريف الإضافية المسجلة", "${"%.0f".format(Locale.US, extraExpenses)} دج")
