@@ -35,6 +35,7 @@ name: Build Android APK
       - "mawashi-pro-v10-independent-20261106"
       - "mawashi-pro-v11-security-backup-20261106"
       - "mawashi-pro-v12-independent-20261106"
+      - "mawashi-pro-v13-backup-assurance-20261106"
 
 jobs:
   build:
@@ -129,7 +130,9 @@ jobs:
           p = Path("app/build.gradle.kts")
           s = p.read_text()
           branch = os.environ.get("GITHUB_REF_NAME")
-          expected = ("dz.murabbi.alghanm.mawashi.prov1220261106"
+          expected = ("dz.murabbi.alghanm.mawashi.prov1320261106"
+                      if branch == "mawashi-pro-v13-backup-assurance-20261106"
+                      else "dz.murabbi.alghanm.mawashi.prov1220261106"
                       if branch == "mawashi-pro-v12-independent-20261106"
                       else "dz.murabbi.alghanm.mawashi.prov1120261106"
                       if branch == "mawashi-pro-v11-security-backup-20261106"
@@ -245,14 +248,14 @@ jobs:
             exit 1
           fi
           ACTUAL_PACKAGE="$("$AAPT" dump badging "$APK" | sed -n "s/^package: name='\\([^']*\\)'.*/\\1/p" | head -n 1)"
-          EXPECTED_PACKAGE="dz.murabbi.alghanm.mawashi.prov1220261106"
+          EXPECTED_PACKAGE="dz.murabbi.alghanm.mawashi.prov1320261106"
           if [ "$ACTUAL_PACKAGE" != "$EXPECTED_PACKAGE" ]; then
             echo "ERROR: APK package is $ACTUAL_PACKAGE, expected $EXPECTED_PACKAGE"
             exit 1
           fi
-          grep -q '"mawashi_pro_v12_standalone20261106.db"' app/src/main/java/dz/murabbi/alghanm/data/FarmDatabase.kt
+          grep -q '"mawashi_pro_v13_standalone20261106.db"' app/src/main/java/dz/murabbi/alghanm/data/FarmDatabase.kt
           echo "VERIFIED APK PACKAGE: $ACTUAL_PACKAGE"
-          echo "VERIFIED DATABASE: mawashi_pro_v12_standalone20261106.db"
+          echo "VERIFIED DATABASE: mawashi_pro_v13_standalone20261106.db"
           grep -q "PBKDF2WithHmacSHA256" app/src/main/java/dz/murabbi/alghanm/security/PinSecurity.kt
           grep -q "newRecoveryCode" MainActivity.txt
           grep -q "recoveryHash" MainActivity.txt
@@ -295,7 +298,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: Mawashi-Pro-V12-Standalone-20261106-APK
+          name: Mawashi-Pro-V13-Standalone-20261106-APK
           path: app/build/outputs/apk/debug/app-debug.apk
 
 # Rebuild the professional sheep-icon test APK
