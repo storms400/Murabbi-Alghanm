@@ -65,7 +65,7 @@ data class HerdEvent(
     val notes: String = ""
 )
 
-@Entity(tableName = "vaccine_dose_records")
+@Entity(tableName = "vaccine_dose_records", indices = [Index(value = ["animalTag", "vaccineKey", "administeredDate"])])
 data class VaccineDoseRecord(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val animalTag: String, val vaccineKey: String, val vaccineName: String,
@@ -207,7 +207,7 @@ abstract class FarmDao {
         VaccineCampaign::class,
         AnimalCareStatus::class
     ],
-    version = 4,
+    version = 5,
     exportSchema = true
 )
 abstract class FarmDatabase : RoomDatabase() {
@@ -251,14 +251,20 @@ abstract class FarmDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_vaccine_dose_records_animalTag_vaccineKey_administeredDate ON vaccine_dose_records(animalTag, vaccineKey, administeredDate)")
+            }
+        }
+
         fun get(context: Context): FarmDatabase =
             INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(
                     context.applicationContext,
                     FarmDatabase::class.java,
-                    "mawashi_pro_standalone20261106.db"
+                    "mawashi_pro_v2_standalone20261106.db"
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
                     .build()
                     .also { INSTANCE = it }
             }
