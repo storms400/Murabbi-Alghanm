@@ -1443,12 +1443,14 @@ fun SmartFarmPanel(
     consumptions: List<FeedConsumption>,
     tasks: List<FarmTask>,
     events: List<HerdEvent>,
+    initialSection: String,
+    onBack: () -> Unit,
     onAddEvent: (String, String, String, String, (Boolean) -> Unit) -> Unit,
     onAddTask: (String, String, Int, String, (Boolean) -> Unit) -> Unit
 ) {
     val context = LocalContext.current
     val today = LocalDate.now()
-    var section by remember { mutableStateOf("التغذية الذكية") }
+    val section = initialSection
     var feedGroup by remember { mutableStateOf("القطيع كله") }
     var dailyPerHead by remember { mutableStateOf("") }
     var targetTag by remember(animals) { mutableStateOf(animals.firstOrNull()?.tag ?: "عام") }
@@ -1495,16 +1497,18 @@ fun SmartFarmPanel(
         events.forEach { appendLine("حدث,${csv(it.animalTag)},${csv(it.eventDate)},${csv("${it.eventType} - ${it.notes}")}") }
     }
 
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Text("الإدارة الذكية للمزرعة", style = MaterialTheme.typography.titleLarge,
-            color = MaterialTheme.colorScheme.primary)
-        Text("أدوات إضافية مدمجة مع بيانات القطيع الحالية.", style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant)
-        DropdownField(
-            "القسم الذكي", section,
-            listOf("التغذية الذكية", "برنامج التطعيمات", "الصحة والتناسل", "الوزن والنمو", "المواعيد والتنبيهات", "المالية والتقارير"),
-            { section = it }
-        )
+    Column(
+        modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            OutlinedButton(onClick = onBack) { Text("رجوع إلى الأقسام") }
+            Text(section, style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.primary)
+        }
 
         val vaccinePlan = remember(animals, events) {
             animals.flatMap { animal ->
