@@ -11,6 +11,9 @@ name: Build Android APK
       - "main"
       - "ui-professional-sheep-icon"
       - "integrated-farm-management"
+      - "scientific-sheep-guide"
+      - "simple-navigation-redesign"
+      - "animal-profile-cards"
 
 jobs:
   build:
@@ -31,8 +34,10 @@ jobs:
       - name: Extract Android project
         run: unzip -o MurabbiAlghanm_Rebuilt_Source.zip -d .
 
-      - name: Apply updated Arabic dashboard
-        run: cp MainActivity.txt app/src/main/java/dz/murabbi/alghanm/MainActivity.kt
+      - name: Apply updated Arabic dashboard and animal profile database
+        run: |
+          cp MainActivity.txt app/src/main/java/dz/murabbi/alghanm/MainActivity.kt
+          cp FarmDatabase.txt app/src/main/java/dz/murabbi/alghanm/data/FarmDatabase.kt
 
       - name: Fix unavailable navigation icons
         run: |
@@ -108,7 +113,7 @@ jobs:
 
           s, count = re.subn(
               r'(?m)^(\s*applicationId\s*=\s*)["\'][^"\']+["\']',
-              r'\1"dz.murabbi.alghanm.test5"',
+              r'\1"dz.murabbi.alghanm.animalcards"',
               s
           )
 
@@ -116,7 +121,7 @@ jobs:
               raise SystemExit("ERROR: Could not set applicationId exactly once")
 
           p.write_text(s)
-          print("TEST APPLICATION ID: dz.murabbi.alghanm.test5")
+          print("TEST APPLICATION ID: dz.murabbi.alghanm.animalcards")
           PY
 
           grep -n applicationId app/build.gradle.kts
@@ -126,7 +131,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: MurabbiAlghanm-Test5-APK
+          name: MurabbiAlghanm-AnimalCards-Test1-APK
           path: app/build/outputs/apk/debug/app-debug.apk
 
 # Rebuild the professional sheep-icon test APK
