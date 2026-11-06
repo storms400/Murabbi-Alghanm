@@ -11,6 +11,7 @@ name: Build Android APK
       - "main"
       - "ui-professional-sheep-icon"
       - "integrated-farm-management"
+      - "scientific-sheep-guide"
 
 jobs:
   build:
