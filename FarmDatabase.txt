@@ -231,15 +231,37 @@ abstract class FarmDao {
     abstract suspend fun saveAnimalCareStatus(status: AnimalCareStatus)
 
     @Insert abstract suspend fun addTreatment(record: TreatmentRecord)
+    @Update abstract suspend fun updateTreatment(record: TreatmentRecord)
+    @Query("DELETE FROM treatment_records WHERE id = :id") abstract suspend fun deleteTreatment(id: Long)
     @Query("SELECT * FROM treatment_records ORDER BY startDate DESC, id DESC") abstract fun treatments(): Flow<List<TreatmentRecord>>
     @Insert abstract suspend fun addReproduction(record: ReproductionRecord)
+    @Update abstract suspend fun updateReproduction(record: ReproductionRecord)
+    @Query("DELETE FROM reproduction_records WHERE id = :id") abstract suspend fun deleteReproduction(id: Long)
     @Query("SELECT * FROM reproduction_records ORDER BY eventDate DESC, id DESC") abstract fun reproductionRecords(): Flow<List<ReproductionRecord>>
     @Insert abstract suspend fun addMedicineStock(item: MedicineStock)
+    @Update abstract suspend fun updateMedicineStock(item: MedicineStock)
+    @Query("DELETE FROM medicine_stock WHERE id = :id") abstract suspend fun deleteMedicineStock(id: Long)
     @Query("SELECT * FROM medicine_stock ORDER BY expiryDate ASC, id DESC") abstract fun medicineStock(): Flow<List<MedicineStock>>
+    @Query("SELECT * FROM medicine_stock WHERE medicineName = :name AND quantity >= :amount AND expiryDate >= :today ORDER BY expiryDate ASC, id ASC") abstract suspend fun availableMedicineBatches(name: String, amount: Double, today: String): List<MedicineStock>
+    @Query("UPDATE medicine_stock SET quantity = quantity - :amount WHERE id = :id AND quantity >= :amount AND expiryDate >= :today") abstract suspend fun deductMedicineStock(id: Long, amount: Double, today: String): Int
+    @Transaction open suspend fun saveTreatmentWithStock(record: TreatmentRecord): Boolean {
+        if (record.quantityUsed > 0.0) {
+            val batch = availableMedicineBatches(record.medicineName, record.quantityUsed, java.time.LocalDate.now().toString()).firstOrNull() ?: return false
+            if (deductMedicineStock(batch.id, record.quantityUsed, java.time.LocalDate.now().toString()) != 1) return false
+        }
+        addTreatment(record)
+        addAuditEntry(AuditEntry(action = "إضافة", recordType = "علاج", details = record.animalTag + ": " + record.diagnosis + " • " + record.medicineName))
+        return true
+    }
     @Insert abstract suspend fun addAuditEntry(entry: AuditEntry)
     @Query("SELECT * FROM audit_entries ORDER BY createdAt DESC") abstract fun auditEntries(): Flow<List<AuditEntry>>
     @Insert(onConflict = OnConflictStrategy.REPLACE) abstract suspend fun saveAppUser(user: AppUser)
     @Query("SELECT * FROM app_users WHERE active = 1 ORDER BY username") abstract fun appUsers(): Flow<List<AppUser>>
+    @Insert abstract suspend fun addFinanceEntry(entry: FinanceEntry)
+    @Update abstract suspend fun updateFinanceEntry(entry: FinanceEntry)
+    @Query("DELETE FROM finance_entries WHERE id = :id") abstract suspend fun deleteFinanceEntry(id: Long)
+    @Query("SELECT * FROM finance_entries ORDER BY entryDate DESC, id DESC") abstract fun financeEntries(): Flow<List<FinanceEntry>>
+    @Query("UPDATE animals SET photoUri = :photoUri WHERE tag = :tag") abstract suspend fun updateAnimalPhoto(tag: String, photoUri: String)
 
     @Query("SELECT COUNT(*) FROM animals WHERE active = 1")
     abstract fun activeCount(): Flow<Int>
@@ -256,9 +278,9 @@ abstract class FarmDao {
         VaccineCampaign::class,
         AnimalCareStatus::class,
         TreatmentRecord::class, ReproductionRecord::class, MedicineStock::class,
-        AuditEntry::class, AppUser::class
+        AuditEntry::class, AppUser::class, FinanceEntry::class
     ],
-    version = 5,
+    version = 6,
     exportSchema = true
 )
 abstract class FarmDatabase : RoomDatabase() {
@@ -312,14 +334,22 @@ abstract class FarmDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_5_6 = object : Migration(5, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE treatment_records ADD COLUMN quantityUsed REAL NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE reproduction_records ADD COLUMN offspringTags TEXT NOT NULL DEFAULT ''")
+                db.execSQL("CREATE TABLE IF NOT EXISTS finance_entries (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, entryType TEXT NOT NULL, category TEXT NOT NULL, amountDzd REAL NOT NULL, entryDate TEXT NOT NULL, description TEXT NOT NULL, animalTag TEXT NOT NULL)")
+            }
+        }
+
         fun get(context: Context): FarmDatabase =
             INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(
                     context.applicationContext,
                     FarmDatabase::class.java,
-                    "mawashi_pro_v4_standalone20261106.db"
+                    "mawashi_pro_v5_standalone20261106.db"
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
                     .build()
                     .also { INSTANCE = it }
             }
