@@ -774,6 +774,19 @@ fun HerdScreen(
     var weight by remember { mutableStateOf("") }
     var error by remember { mutableStateOf("") }
     var saving by remember { mutableStateOf(false) }
+    var vaccineProduct by remember { mutableStateOf("") }
+    var vaccineDose by remember { mutableStateOf("") }
+    var vaccineBatch by remember { mutableStateOf("") }
+    var vaccineNextDue by remember { mutableStateOf("") }
+    var vaccineVet by remember { mutableStateOf("") }
+    var vaccineNotes by remember { mutableStateOf("") }
+    var careStatus by remember { mutableStateOf("طبيعي") }
+    var careNotes by remember { mutableStateOf("") }
+    var campaignName by remember { mutableStateOf("") }
+    var campaignRef by remember { mutableStateOf("") }
+    var campaignTarget by remember { mutableStateOf("كل القطيع") }
+    var campaignEnd by remember { mutableStateOf("") }
+    var campaignStatus by remember { mutableStateOf("معلنة") }
 
     Column(modifier = Modifier.fillMaxSize()) {
 
