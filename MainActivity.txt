@@ -1804,6 +1804,11 @@ fun SmartFarmPanel(
         vaccineRecords.forEach { appendLine("جرعة لقاح,${csv(it.animalTag)},${csv(it.administeredDate)},${csv("${it.vaccineName} - ${it.productName} - ${it.doseText} - دفعة ${it.batchNumber} - التالية ${it.nextDueDate}")}") }
         vaccineCampaigns.forEach { appendLine("حملة تطعيم,${csv(it.name)},${csv(it.startDate)},${csv("${it.status} - ${it.targetGroup} - ${it.authorityReference}")}") }
         careStatuses.forEach { appendLine("حالة رعاية,${csv(it.animalTag)},,${csv("${it.status} - ${it.notes}")}") }
+        treatments.forEach { appendLine("علاج,${csv(it.animalTag)},${csv(it.startDate)},${csv("${it.diagnosis} - ${it.medicineName} - الجرعة ${it.dose} - سحب حتى ${it.withdrawalUntil} - كمية ${it.quantityUsed}")}") }
+        reproductionRecords.forEach { appendLine("تكاثر,${csv(it.femaleTag)},${csv(it.eventDate)},${csv("${it.eventType} - الفحل ${it.maleTag} - موعد متوقع ${it.expectedDate} - عدد المواليد ${it.offspringCount} - أرقام المواليد ${it.offspringTags}")}") }
+        medicineStock.forEach { appendLine("مخزون دواء,${csv(it.medicineName)},${csv(it.expiryDate)},${csv("الكمية ${it.quantity} ${it.unit} - دفعة ${it.batchNumber} - المورد ${it.supplier}")}") }
+        financeEntries.forEach { appendLine("حركة مالية,${csv(it.entryType + " - " + it.category)},${csv(it.entryDate)},${csv(it.amountDzd.toString() + " دج - " + it.description + " - الحيوان " + it.animalTag)}") }
+        auditEntries.forEach { appendLine("تدقيق,${csv(it.recordType + " - " + it.action)},${csv(java.time.Instant.ofEpochMilli(it.createdAt).toString())},${csv(it.recordId + " - " + it.details)}") }
     }
 
     Column(
