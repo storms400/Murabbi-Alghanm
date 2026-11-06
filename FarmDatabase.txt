@@ -211,7 +211,7 @@ abstract class FarmDatabase : RoomDatabase() {
                 INSTANCE ?: Room.databaseBuilder(
                     context.applicationContext,
                     FarmDatabase::class.java,
-                    "murabbi_vaccination2026.db"
+                    "murabbi_professional2026.db"
                 )
                     .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
                     .build()
