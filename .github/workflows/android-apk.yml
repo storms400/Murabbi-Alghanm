@@ -24,6 +24,7 @@ name: Build Android APK
       - "mqane-exact-independent-copy-2026"
       - "mqane-auto-calendar-independent-2026"
       - "mawashi-vaccination-standalone-20261106"
+      - "mawashi-pro-vaccination-standalone-20261106"
 
 jobs:
   build:
@@ -55,8 +56,13 @@ jobs:
           if "android.permission.POST_NOTIFICATIONS" not in s:
               s = s.replace("<application", '<uses-permission android:name="android.permission.POST_NOTIFICATIONS" />\n    <application', 1)
           receiver = '<receiver android:name="dz.murabbi.alghanm.VaccineReminderReceiver" android:enabled="true" android:exported="false" />'
+          boot_receiver = '<receiver android:name="dz.murabbi.alghanm.VaccineBootReceiver" android:enabled="true" android:exported="false"><intent-filter><action android:name="android.intent.action.BOOT_COMPLETED" /><action android:name="android.intent.action.MY_PACKAGE_REPLACED" /></intent-filter></receiver>'
+          if "android.permission.RECEIVE_BOOT_COMPLETED" not in s:
+              s = s.replace("<application", '<uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />\n    <application', 1)
           if "VaccineReminderReceiver" not in s:
               s = s.replace("</application>", "        " + receiver + "\n    </application>", 1)
+          if "VaccineBootReceiver" not in s:
+              s = s.replace("</application>", "        " + boot_receiver + "\n    </application>", 1)
           p.write_text(s)
           PY
 
@@ -113,7 +119,9 @@ jobs:
           p = Path("app/build.gradle.kts")
           s = p.read_text()
           branch = os.environ.get("GITHUB_REF_NAME")
-          expected = ("dz.murabbi.alghanm.mawashi20261106"
+          expected = ("dz.murabbi.alghanm.mawashi.pro20261106"
+                      if branch == "mawashi-pro-vaccination-standalone-20261106"
+                      else "dz.murabbi.alghanm.mawashi20261106"
                       if branch == "mawashi-vaccination-standalone-20261106"
                       else "dz.murabbi.alghanm.calendarstandalone20261106"
                       if branch == "mqane-auto-calendar-independent-2026"
@@ -169,18 +177,18 @@ jobs:
             exit 1
           fi
           ACTUAL_PACKAGE="$("$AAPT" dump badging "$APK" | sed -n "s/^package: name='\\([^']*\\)'.*/\\1/p" | head -n 1)"
-          EXPECTED_PACKAGE="dz.murabbi.alghanm.mawashi20261106"
+          EXPECTED_PACKAGE="dz.murabbi.alghanm.mawashi.pro20261106"
           if [ "$ACTUAL_PACKAGE" != "$EXPECTED_PACKAGE" ]; then
             echo "ERROR: APK package is $ACTUAL_PACKAGE, expected $EXPECTED_PACKAGE"
             exit 1
           fi
-          grep -q '"mawashi_standalone20261106.db"' app/src/main/java/dz/murabbi/alghanm/data/FarmDatabase.kt
+          grep -q '"mawashi_pro_standalone20261106.db"' app/src/main/java/dz/murabbi/alghanm/data/FarmDatabase.kt
           echo "VERIFIED APK PACKAGE: $ACTUAL_PACKAGE"
           echo "VERIFIED DATABASE: mawashi_standalone20261106.db"
 
       - uses: actions/upload-artifact@v4
         with:
-          name: Mawashi-Standalone-20261106-APK
+          name: Mawashi-Vet-Pro-Standalone-20261106-APK
           path: app/build/outputs/apk/debug/app-debug.apk
 
 # Rebuild the professional sheep-icon test APK
