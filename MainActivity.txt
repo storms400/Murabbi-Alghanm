@@ -145,6 +145,9 @@ class FarmViewModel(private val dao: FarmDao) : ViewModel() {
     val events = dao.events().stateIn(
         viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList()
     )
+    val vaccineRecords = dao.vaccineRecords().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    val vaccineCampaigns = dao.vaccineCampaigns().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    val careStatuses = dao.animalCareStatuses().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     fun addAnimal(
         tag: String,
@@ -294,6 +297,16 @@ class FarmViewModel(private val dao: FarmDao) : ViewModel() {
             }
         }
     }
+
+    fun addVaccineRecord(record: VaccineDoseRecord, onResult: (Boolean) -> Unit) {
+        viewModelScope.launch { onResult(runCatching { dao.addVaccineRecord(record) }.isSuccess) }
+    }
+    fun addVaccineCampaign(campaign: VaccineCampaign, onResult: (Boolean) -> Unit) {
+        viewModelScope.launch { onResult(runCatching { dao.addVaccineCampaign(campaign) }.isSuccess) }
+    }
+    fun saveCareStatus(status: AnimalCareStatus, onResult: (Boolean) -> Unit) {
+        viewModelScope.launch { onResult(runCatching { dao.saveAnimalCareStatus(status) }.isSuccess) }
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -304,6 +317,9 @@ fun FarmScreen(vm: FarmViewModel) {
     val consumptions by vm.consumptions.collectAsState()
     val tasks by vm.tasks.collectAsState()
     val events by vm.events.collectAsState()
+    val vaccineRecords by vm.vaccineRecords.collectAsState()
+    val vaccineCampaigns by vm.vaccineCampaigns.collectAsState()
+    val careStatuses by vm.careStatuses.collectAsState()
 
     var selectedTab by remember { mutableIntStateOf(0) }
     var selectedAnimal by remember { mutableStateOf<Animal?>(null) }
@@ -330,7 +346,7 @@ fun FarmScreen(vm: FarmViewModel) {
                             style = MaterialTheme.typography.titleLarge
                         )
                         Text(
-                            "مربي الغنم • إدارة مراحك بسهولة",
+                            "مواشي • إدارة القطيع بذكاء",
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -441,6 +457,12 @@ fun FarmScreen(vm: FarmViewModel) {
                                 consumptions = consumptions,
                                 tasks = tasks,
                                 events = events,
+                                vaccineRecords = vaccineRecords,
+                                vaccineCampaigns = vaccineCampaigns,
+                                careStatuses = careStatuses,
+                                onAddVaccineRecord = { record, result -> vm.addVaccineRecord(record, result) },
+                                onAddVaccineCampaign = { campaign, result -> vm.addVaccineCampaign(campaign, result) },
+                                onSaveCareStatus = { status, result -> vm.saveCareStatus(status, result) },
                                 initialSection = selectedSmartSection!!,
                                 onBack = { selectedSmartSection = null },
                                 onAddEvent = { tag, type, date, notes, result ->
@@ -1579,6 +1601,12 @@ fun SmartFarmPanel(
     consumptions: List<FeedConsumption>,
     tasks: List<FarmTask>,
     events: List<HerdEvent>,
+    vaccineRecords: List<VaccineDoseRecord>,
+    vaccineCampaigns: List<VaccineCampaign>,
+    careStatuses: List<AnimalCareStatus>,
+    onAddVaccineRecord: (VaccineDoseRecord, (Boolean) -> Unit) -> Unit,
+    onAddVaccineCampaign: (VaccineCampaign, (Boolean) -> Unit) -> Unit,
+    onSaveCareStatus: (AnimalCareStatus, (Boolean) -> Unit) -> Unit,
     initialSection: String,
     onBack: () -> Unit,
     onAddEvent: (String, String, String, String, (Boolean) -> Unit) -> Unit,
