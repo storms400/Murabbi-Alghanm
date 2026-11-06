@@ -1,6 +1,13 @@
 package dz.murabbi.alghanm
 
 import android.content.Intent
+import android.app.AlarmManager
+import android.app.PendingIntent
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.os.Build
+import androidx.core.app.NotificationCompat
+import androidx.core.app.NotificationManagerCompat
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -11,8 +18,50 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import dz.murabbi.alghanm.data.*
 import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.ZoneId
 import java.time.temporal.ChronoUnit
 import java.util.Locale
+
+private data class VaccinePlanItem(
+    val animalTag: String, val key: String, val title: String,
+    val dueDate: LocalDate, val guidance: String
+)
+
+class VaccineReminderReceiver : BroadcastReceiver() {
+    override fun onReceive(context: Context, intent: Intent) {
+        val channelId = "sheep_vaccination_reminders"
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as android.app.NotificationManager
+            manager.createNotificationChannel(android.app.NotificationChannel(channelId, "تنبيهات التطعيمات", android.app.NotificationManager.IMPORTANCE_HIGH))
+        }
+        val notification = NotificationCompat.Builder(context, channelId)
+            .setSmallIcon(android.R.drawable.ic_dialog_info)
+            .setContentTitle(intent.getStringExtra("title") ?: "موعد تطعيم")
+            .setContentText(intent.getStringExtra("body") ?: "راجع برنامج التطعيم")
+            .setPriority(NotificationCompat.PRIORITY_HIGH).setAutoCancel(true).build()
+        try { NotificationManagerCompat.from(context).notify(intent.getIntExtra("notificationId", 1001), notification) }
+        catch (_: SecurityException) { }
+    }
+}
+
+private fun scheduleVaccineAlarm(context: Context, tag: String, key: String, title: String, due: LocalDate, day: LocalDate, label: String) {
+    val alarm = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+    val code = (tag + key + label).hashCode()
+    val intent = Intent(context, VaccineReminderReceiver::class.java).apply {
+        putExtra("title", "تذكير تطعيم: " + tag)
+        putExtra("body", title + " — " + label + ". موعد الاستحقاق: " + due)
+        putExtra("notificationId", code)
+    }
+    val pending = PendingIntent.getBroadcast(context, code, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+    val millis = LocalDateTime.of(day, java.time.LocalTime.of(8, 0)).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+    if (millis <= System.currentTimeMillis()) return
+    try {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && alarm.canScheduleExactAlarms())
+            alarm.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, millis, pending)
+        else alarm.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, millis, pending)
+    } catch (_: SecurityException) { alarm.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, millis, pending) }
+}
 
 @Composable
 fun SmartFarmPanel(
@@ -80,11 +129,68 @@ fun SmartFarmPanel(
             color = MaterialTheme.colorScheme.onSurfaceVariant)
         DropdownField(
             "القسم الذكي", section,
-            listOf("التغذية الذكية", "الصحة والتناسل", "الوزن والنمو", "المواعيد والتنبيهات", "المالية والتقارير"),
+            listOf("التغذية الذكية", "برنامج التطعيمات", "الصحة والتناسل", "الوزن والنمو", "المواعيد والتنبيهات", "المالية والتقارير"),
             { section = it }
         )
 
+        val vaccinePlan = remember(animals, events) {
+            animals.flatMap { animal ->
+                val birth = runCatching { LocalDate.parse(animal.birthDate) }.getOrNull()
+                if (birth == null) emptyList() else listOf(
+                    VaccinePlanItem(animal.tag, "clostridial-1", "التسمم المعوي والكزاز — الجرعة الأولى", birth.plusDays(45),
+                        "توقيت استرشادي بعمر 6–8 أسابيع؛ يتغير حسب مناعة الأم ونشرة اللقاح."),
+                    VaccinePlanItem(animal.tag, "clostridial-2", "التسمم المعوي والكزاز — الجرعة الثانية", birth.plusDays(69),
+                        "بعد 3–4 أسابيع من الأولى، بشرط مطابقة الفاصل لنشرة المنتج."),
+                    VaccinePlanItem(animal.tag, "ppr", "طاعون المجترات الصغيرة (PPR)", birth.plusDays(105),
+                        "يُراجع عند عمر 3–4 أشهر؛ التنفيذ حسب برنامج المصالح البيطرية ونوع اللقاح وتداخل مناعة الأم."),
+                    VaccinePlanItem(animal.tag, "pox-risk", "جدري الأغنام (عند وجود خطر)", birth.plusDays(120),
+                        "لا يُعد موعداً روتينياً عاماً؛ لا يُعطى إلا بتوجيه المصالح البيطرية أو الطبيب.")
+                )
+            }
+        }
+        fun vaccineRecorded(item: VaccinePlanItem) =
+            events.any { it.animalTag == item.animalTag && it.eventType == "تطعيم" && it.notes.contains("VAX:" + item.key) }
+        LaunchedEffect(vaccinePlan, events) {
+            vaccinePlan.filterNot { vaccineRecorded(it) }.forEach { item ->
+                scheduleVaccineAlarm(context, item.animalTag, item.key, item.title, item.dueDate, item.dueDate.minusDays(3), "تبقى 3 أيام")
+                scheduleVaccineAlarm(context, item.animalTag, item.key, item.title, item.dueDate, item.dueDate, "موعد التطعيم اليوم الساعة 08:00")
+            }
+        }
         when (section) {
+            "برنامج التطعيمات" -> {
+                Text("برنامج التطعيمات المحسوب من تاريخ الميلاد", style = MaterialTheme.typography.titleMedium)
+                Text("يظهر جدول مستقل لكل حيوان. التنبيه قبل الموعد بثلاثة أيام ويوم الاستحقاق الساعة 08:00.", style = MaterialTheme.typography.bodySmall)
+                Text("المواعيد إرشادية وليست وصفة بيطرية؛ يجب مراجعة تلقيح الأم، الحالة الصحية، نشرة المنتج، وبرنامج الجزائر الرسمي قبل إعطاء أي لقاح.", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                val noBirth = animals.filter { runCatching { LocalDate.parse(it.birthDate) }.isFailure }
+                noBirth.forEach { Text("أضف تاريخ ميلاد الحيوان " + it.tag + " من بطاقة الحيوان لحساب جدوله.") }
+                vaccinePlan.sortedBy { it.dueDate }.forEach { item ->
+                    val done = vaccineRecorded(item)
+                    val days = ChronoUnit.DAYS.between(today, item.dueDate)
+                    Card {
+                        Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                            Text(item.animalTag + " • " + item.title, style = MaterialTheme.typography.titleSmall)
+                            Text("موعد محسوب: " + item.dueDate + " • " + if (done) "مسجل" else if (days < 0) "متأخر " + (-days) + " يوم" else if (days == 0L) "مستحق اليوم" else "بعد " + days + " يوم")
+                            Text(item.guidance, style = MaterialTheme.typography.bodySmall)
+                            if (!done) OutlinedButton(onClick = {
+                                saving = true
+                                onAddEvent(item.animalTag, "تطعيم", today.toString(),
+                                    "VAX:" + item.key + " | " + item.title + " | موعد الخطة: " + item.dueDate + " | أضف اسم المنتج ورقم الدفعة والجرعة المعطاة.") { ok ->
+                                    saving = false
+                                    message = if (ok) "تم تسجيل التطعيم." else "تعذر تسجيل التطعيم."
+                                }
+                            }, modifier = Modifier.fillMaxWidth()) { Text("تسجيل إعطاء اللقاح") }
+                        }
+                    }
+                }
+                Text("لقاحات مرتبطة بالخطر الوبائي أو القرار الرسمي — لا تُجدول تلقائياً", style = MaterialTheme.typography.titleSmall)
+                listOf(
+                    "الحمى القلاعية: حسب الحملة الرسمية الجزائرية.",
+                    "البروسيلا: حسب البرنامج الرسمي والقيود التنظيمية فقط.",
+                    "الباستوريلا والجمرة الخبيثة والحمى الزرقاء: وفق تشخيص الخطر وتوجيه الطبيب.",
+                    "لا يعطي التطبيق جرعات أو تعليمات حقن؛ اعتمد نشرة المنتج والطبيب البيطري."
+                ).forEach { Text("• " + it, style = MaterialTheme.typography.bodySmall) }
+                if (message.isNotBlank()) Text(message)
+            }
             "التغذية الذكية" -> {
                 Text("حاسبة الاحتياج اليومي", style = MaterialTheme.typography.titleMedium)
                 DropdownField("الفئة", feedGroup, listOf("القطيع كله", "نعاج", "فحول", "حملان"), { feedGroup = it })
