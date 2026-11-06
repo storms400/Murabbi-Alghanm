@@ -3,6 +3,7 @@
 package dz.murabbi.alghanm.data
 
 import android.content.Context
+import androidx.room.ColumnInfo
 import androidx.room.*
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
@@ -93,8 +94,8 @@ data class TreatmentRecord(
     val animalTag: String, val diagnosis: String, val medicineName: String,
     val dose: String = "", val startDate: String, val endDate: String = "",
     val veterinarian: String = "", val withdrawalUntil: String = "", val notes: String = "",
-    val quantityUsed: Double = 0.0,
-    val medicineBatchId: Long = 0
+    @ColumnInfo(defaultValue = "0") val quantityUsed: Double = 0.0,
+    @ColumnInfo(defaultValue = "0") val medicineBatchId: Long = 0
 )
 
 @Entity(tableName = "reproduction_records")
@@ -102,7 +103,7 @@ data class ReproductionRecord(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val femaleTag: String, val maleTag: String = "", val eventType: String,
     val eventDate: String, val expectedDate: String = "", val offspringCount: Int = 0,
-    val notes: String = "", val offspringTags: String = ""
+    val notes: String = "", @ColumnInfo(defaultValue = "''") val offspringTags: String = ""
 )
 
 @Entity(tableName = "medicine_stock")
