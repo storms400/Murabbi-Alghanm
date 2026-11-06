@@ -116,7 +116,7 @@ jobs:
               raise SystemExit("ERROR: Could not set applicationId exactly once")
 
           p.write_text(s)
-          print("TEST APPLICATION ID: dz.murabbi.alghanm.test4")
+          print("TEST APPLICATION ID: dz.murabbi.alghanm.test5")
           PY
 
           grep -n applicationId app/build.gradle.kts
