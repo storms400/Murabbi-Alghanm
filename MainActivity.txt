@@ -1212,11 +1212,12 @@ fun SmartFarmPanel(
             color = MaterialTheme.colorScheme.onSurfaceVariant)
         DropdownField(
             "القسم الذكي", section,
-            listOf("التغذية الذكية", "الصحة والتناسل", "الوزن والنمو", "المواعيد والتنبيهات", "المالية والتقارير"),
+            listOf("التغذية الذكية", "المرشد العلمي", "الصحة والتناسل", "الوزن والنمو", "المواعيد والتنبيهات", "المالية والتقارير"),
             { section = it }
         )
 
         when (section) {
+            "المرشد العلمي" -> ScientificSheepGuide(animals = animals)
             "التغذية الذكية" -> {
                 Text("حاسبة الاحتياج اليومي", style = MaterialTheme.typography.titleMedium)
                 DropdownField("الفئة", feedGroup, listOf("القطيع كله", "نعاج", "فحول", "حملان"), { feedGroup = it })
@@ -1389,3 +1390,144 @@ fun SmartFarmPanel(
     }
 }
 
+
+
+/**
+ * دليل تغذية ورعاية إرشادي للأغنام.
+ * القيم تقديرية للمقارنة والتخطيط وليست وصفة علفية مكتملة.
+ */
+@Composable
+fun ScientificSheepGuide(animals: List<Animal>) {
+    var selectedTag by remember(animals) { mutableStateOf(animals.firstOrNull()?.tag ?: "") }
+    var stage by remember { mutableStateOf("صيانة / نعجة جافة") }
+    var lambs by remember { mutableStateOf("واحد") }
+    var weightText by remember(animals) {
+        mutableStateOf(animals.firstOrNull { it.tag == selectedTag }?.weightKg?.toString() ?: "50")
+    }
+    var heat by remember { mutableStateOf("معتدل") }
+    var daysToLambing by remember { mutableStateOf("30") }
+
+    val selected = animals.firstOrNull { it.tag == selectedTag }
+    val weight = weightText.replace(',', '.').toDoubleOrNull()
+    val validWeight = weight != null && weight in 3.0..200.0
+    val twin = lambs == "توأم"
+    val lambCount = if (twin) 2 else 1
+
+    val dmPercent = when (stage) {
+        "أواخر الحمل" -> if (twin) 0.026 else 0.025
+        "بداية الرضاعة" -> if (twin) 0.030 else 0.028
+        "نمو حمل مفطوم" -> 0.035
+        "فحل في موسم التلقيح" -> 0.022
+        else -> 0.020
+    }
+    val cpPercent = when (stage) {
+        "أواخر الحمل" -> if (twin) 0.13 else 0.11
+        "بداية الرضاعة" -> if (twin) 0.16 else 0.14
+        "نمو حمل مفطوم" -> 0.16
+        "فحل في موسم التلقيح" -> 0.11
+        else -> 0.08
+    }
+    val mePerDay = if (validWeight) {
+        val maintenance = 0.394 * Math.pow(weight!!, 0.75)
+        when (stage) {
+            "أواخر الحمل" -> maintenance + if (twin) 8.0 else 4.0
+            "بداية الرضاعة" -> maintenance + if (twin) 19.0 else 12.0
+            "نمو حمل مفطوم" -> maintenance * 1.55
+            "فحل في موسم التلقيح" -> maintenance + 6.3
+            else -> maintenance
+        }
+    } else 0.0
+    val dmKg = if (validWeight) weight!! * dmPercent else 0.0
+    val cpGrams = dmKg * cpPercent * 1000.0
+    val waterLow = dmKg * 2.1
+    val waterHigh = dmKg * 3.1
+    val heatFactor = when (heat) {
+        "حار" -> 1.25
+        "شديد الحرارة" -> 1.50
+        else -> 1.0
+    }
+
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Text("المرشد العلمي لتغذية ورعاية الأغنام", style = MaterialTheme.typography.titleLarge,
+            color = MaterialTheme.colorScheme.primary)
+        Text("احسب الاحتياجات حسب الحيوان ووزنه ومرحلة الإنتاج. غيّر الوزن إذا كان القياس أحدث من سجل القطيع.",
+            style = MaterialTheme.typography.bodySmall)
+
+        if (animals.isNotEmpty()) {
+            DropdownField("الحيوان من سجلات القطيع", selectedTag,
+                animals.map { it.tag }, {
+                    selectedTag = it
+                    weightText = animals.firstOrNull { a -> a.tag == it }?.weightKg?.toString() ?: ""
+                })
+        } else {
+            Text("لا توجد حيوانات مسجلة بعد؛ أدخل الوزن يدوياً لإجراء تقدير عام.")
+        }
+        OutlinedTextField(
+            value = weightText, onValueChange = { weightText = it },
+            label = { Text("الوزن الحي بالكيلوغرام") },
+            supportingText = { Text("النطاق المقبول للحساب 3 إلى 200 كغ") },
+            modifier = Modifier.fillMaxWidth()
+        )
+        DropdownField("المرحلة الإنتاجية", stage,
+            listOf("صيانة / نعجة جافة", "أواخر الحمل", "بداية الرضاعة", "نمو حمل مفطوم", "فحل في موسم التلقيح"),
+            { stage = it })
+        if (stage == "أواخر الحمل" || stage == "بداية الرضاعة") {
+            DropdownField("عدد الحملان", lambs, listOf("واحد", "توأم"), { lambs = it })
+        }
+        DropdownField("الطقس", heat, listOf("معتدل", "حار", "شديد الحرارة"), { heat = it })
+        if (stage == "أواخر الحمل") {
+            OutlinedTextField(daysToLambing, { daysToLambing = it.filter(Char::isDigit) },
+                label = { Text("الأيام المتبقية للولادة (للتذكير)") },
+                modifier = Modifier.fillMaxWidth())
+        }
+
+        if (!validWeight) {
+            Text("أدخل وزناً صحيحاً قبل عرض الحسابات.", color = MaterialTheme.colorScheme.error)
+        } else {
+            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
+                Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                    Text("التقدير اليومي للحيوان المحدد", style = MaterialTheme.typography.titleMedium)
+                    Text("المادة الجافة: %.2f كغ/يوم".format(Locale.US, dmKg))
+                    Text("البروتين الخام المستهدف تقريباً: %.0f غ/يوم".format(Locale.US, cpGrams))
+                    Text("الطاقة الأيضية التقديرية: %.1f ميغاجول/يوم".format(Locale.US, mePerDay))
+                    Text("ماء الشرب: %.1f – %.1f لتر/يوم".format(Locale.US, waterLow * heatFactor, waterHigh * heatFactor))
+                    Text("لـ 7 أيام: %.1f كغ مادة جافة".format(Locale.US, dmKg * 7))
+                    Text("لـ 30 يوماً: %.1f كغ مادة جافة".format(Locale.US, dmKg * 30))
+                }
+            }
+            Text("مهم: المادة الجافة ليست وزن العلف كما يقدم. لتحويلها إلى علف فعلي اقسم كمية المادة الجافة على نسبة المادة الجافة المكتوبة أو المحللة للعلف.")
+            if (stage == "أواخر الحمل" && daysToLambing.toIntOrNull() in 0..45) {
+                Text("تذكير رعاية: خلال آخر 30–45 يوماً قبل الولادة، راجع التحصين المعتمد محلياً وفحص الحالة الجسمية والعليقة مع الطبيب البيطري.",
+                    color = MaterialTheme.colorScheme.primary)
+            }
+        }
+
+        HorizontalDivider()
+        Text("المعادن والفيتامينات", style = MaterialTheme.typography.titleMedium)
+        Text("• وفر مخلوط أملاح ومعادن مخصصاً للأغنام، مع ماء نظيف باستمرار.")
+        Text("• لا تستخدم خلطات الأبقار أو الماعز تلقائياً؛ الأغنام حساسة لتسمم النحاس.")
+        Text("• لا تعطِ السيلينيوم أو النحاس أو الفيتامينات بالحقن أو جرعات مركزة دون تشخيص وجرعة يحددها الطبيب/ملصق المنتج.")
+        Text("• افحص جودة التبن والعلف والماء؛ تحليل العليقة أفضل من إضافة المكملات عشوائياً.")
+
+        HorizontalDivider()
+        Text("خطة وقاية وتلقيح قابلة للتخصيص", style = MaterialTheme.typography.titleMedium)
+        listOf(
+            "عند إدخال حيوان جديد" to "عزل ومراقبة وفحص بيطري قبل خلطه بالقطيع.",
+            "قبل موسم التلقيح" to "فحص الحالة الجسمية والأظلاف والطفيليات والتغذية.",
+            "قبل الولادة بـ 30–45 يوماً" to "ناقش جرعة التعزيز ضد المطثيات والكزاز إذا كان ذلك ضمن برنامج المنطقة وسجل التحصين.",
+            "الحملان حديثة الولادة" to "تأكد من تناول اللبأ سريعاً، وراقب الحرارة والرضاعة والسرة.",
+            "خلال السنة" to "جدول PPR والحمى القلاعية والجدري والطفيليات يحدد وفق تعليمات المصالح البيطرية الجزائرية وخطر المنطقة."
+        ).forEach { (heading, detail) ->
+            ListItem(headlineContent = { Text(heading) }, supportingContent = { Text(detail) })
+            HorizontalDivider()
+        }
+        Text("لا توجد جرعة لقاح واحدة أو رزنامة ثابتة تصلح لكل المناطق والمنتجات. سجّل اسم اللقاح ورقم التشغيلة وتاريخ الصلاحية، واتبع النشرة والطبيب البيطري.",
+            color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+
+        HorizontalDivider()
+        Text("متى تطلب الطبيب فوراً؟", style = MaterialTheme.typography.titleMedium)
+        Text("توقف الأكل أو الشرب، انتفاخ شديد، صعوبة التنفس، إسهال شديد أو دموي، عرج حاد، حرارة/خمول، أو نعجة حامل لا تستطيع الوقوف.")
+        Text("النتائج إرشادية وليست تشخيصاً أو وصفة علفية مكتملة. تتغير الاحتياجات مع السلالة، العمر، الحركة، حالة الجسم، جودة المرعى، المناخ وصحة الحيوان.",
+            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
