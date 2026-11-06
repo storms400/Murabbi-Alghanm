@@ -1,3 +1,4 @@
+// Herd intelligence and reporting enhancements - independent 2026 branch
 
 package dz.murabbi.alghanm
 
