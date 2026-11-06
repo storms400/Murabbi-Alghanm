@@ -1069,6 +1069,30 @@ fun FeedingScreen(
             )
         }
 
+        val weekStart = LocalDate.now().minusDays(6)
+        val recentEntries = consumptions.filter { entry ->
+            entry.feedName == feed &&
+                runCatching { LocalDate.parse(entry.consumptionDate) }.getOrNull()
+                    ?.let { !it.isBefore(weekStart) && !it.isAfter(LocalDate.now()) } == true
+        }
+        val recentKg = recentEntries.sumOf { it.quantityKg }
+        val recentHeadCount = recentEntries.sumOf { it.animalCount.coerceAtLeast(0) }
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
+        ) {
+            Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text("ملخص استهلاك $feed خلال 7 أيام", style = MaterialTheme.typography.titleSmall)
+                Text("الكمية المسجلة: ${"%.2f".format(Locale.US, recentKg)} كغ")
+                Text(if (recentHeadCount > 0)
+                    "متوسط السجل لكل رأس: ${"%.3f".format(Locale.US, recentKg / recentHeadCount)} كغ"
+                    else "لا توجد سجلات لهذا العلف خلال آخر 7 أيام.")
+                Text("مؤشر حسابي للسجلات فقط، وليس حصة غذائية موصى بها.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+
         HorizontalDivider()
         Text("سجل الاستهلاك", style = MaterialTheme.typography.titleMedium)
 
