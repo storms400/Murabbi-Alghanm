@@ -182,7 +182,9 @@ jobs:
           s = Path("app/build.gradle.kts").read_text()
           m = re.search(r'applicationId\s*=\s*"([^"]+)"', s)
           branch = os.environ.get("GITHUB_REF_NAME")
-          expected = ("dz.murabbi.alghanm.mawashi.prov1120261106"
+          expected = ("dz.murabbi.alghanm.mawashi.prov1220261106"
+                      if branch == "mawashi-pro-v12-independent-20261106"
+                      else "dz.murabbi.alghanm.mawashi.prov1120261106"
                       if branch == "mawashi-pro-v11-security-backup-20261106"
                       else "dz.murabbi.alghanm.mawashi.prov1020261106"
                       if branch == "mawashi-pro-v10-independent-20261106"
