@@ -21,7 +21,6 @@ import java.util.zip.ZipEntry
 import java.util.zip.ZipInputStream
 import java.util.zip.ZipOutputStream
 import javax.crypto.Cipher
-import javax.crypto.CipherInputStream
 import javax.crypto.CipherOutputStream
 import javax.crypto.SecretKeyFactory
 import javax.crypto.spec.GCMParameterSpec
@@ -116,7 +115,6 @@ object MawashiBackup {
                     val iv = header.copyOfRange(magic.size + 16, header.size)
                     val cipher = Cipher.getInstance("AES/GCM/NoPadding")
                     cipher.init(Cipher.DECRYPT_MODE, deriveKey(password, salt), GCMParameterSpec(128, iv))
-                    val bounded = CountingInputStream(input, MAX_BACKUP_BYTES)
                     decryptToFile(input, plainZip, cipher)
                 }
 
@@ -268,6 +266,32 @@ object MawashiBackup {
         return SecretKeySpec(bytes, "AES")
     }
 
+    private fun decryptToFile(input: InputStream, destination: File, cipher: Cipher) {
+        val bounded = CountingInputStream(input, MAX_BACKUP_BYTES)
+        BufferedInputStream(bounded).use { source ->
+            destination.outputStream().buffered().use { target ->
+                val buffer = ByteArray(8192)
+                var total = 0L
+                while (true) {
+                    val count = source.read(buffer)
+                    if (count < 0) break
+                    val decoded = cipher.update(buffer, 0, count)
+                    if (decoded != null && decoded.isNotEmpty()) {
+                        total += decoded.size
+                        require(total <= MAX_BACKUP_BYTES) { "حجم البيانات بعد فك التشفير تجاوز الحد." }
+                        target.write(decoded)
+                    }
+                }
+                // doFinal authenticates the GCM tag; wrong passwords and tampering fail here.
+                val finalBytes = cipher.doFinal()
+                if (finalBytes.isNotEmpty()) {
+                    total += finalBytes.size
+                    require(total <= MAX_BACKUP_BYTES) { "حجم البيانات بعد فك التشفير تجاوز الحد." }
+                    target.write(finalBytes)
+                }
+            }
+        }
+    }
     private fun InputStream.readFully(target: ByteArray) {
         var offset = 0
         while (offset < target.size) {
@@ -308,9 +332,7 @@ object MawashiBackup {
         }
     }
 
-    internal fun isSafeEntryName(name: String): Boolean =
-        name.isNotBlank() && !name.startsWith("/") && !name.contains("..") &&
-            !name.contains('\\') && !name.contains('\u0000')
+    internal fun isSafeEntryName(name: String): Boolean = BackupArchivePolicy.safeEntryName(name)
 
     internal fun isSupportedPhotoEntry(name: String): Boolean {
         if (!isSafeEntryName(name) || !name.startsWith("photos/")) return false
