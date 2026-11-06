@@ -1713,6 +1713,9 @@ fun SmartFarmPanel(
         consumptions.forEach { appendLine("استهلاك,${csv(it.feedName)},${csv(it.consumptionDate)},${csv("${it.quantityKg} كغ - ${it.animalCategory}")}") }
         tasks.forEach { appendLine("مهمة,${csv(it.taskType)},${csv(it.taskDate)},${csv(it.notes)}") }
         events.forEach { appendLine("حدث,${csv(it.animalTag)},${csv(it.eventDate)},${csv("${it.eventType} - ${it.notes}")}") }
+        vaccineRecords.forEach { appendLine("جرعة لقاح,${csv(it.animalTag)},${csv(it.administeredDate)},${csv("${it.vaccineName} - ${it.productName} - ${it.doseText} - دفعة ${it.batchNumber} - التالية ${it.nextDueDate}")}") }
+        vaccineCampaigns.forEach { appendLine("حملة تطعيم,${csv(it.name)},${csv(it.startDate)},${csv("${it.status} - ${it.targetGroup} - ${it.authorityReference}")}") }
+        careStatuses.forEach { appendLine("حالة رعاية,${csv(it.animalTag)},,${csv("${it.status} - ${it.notes}")}") }
     }
 
     Column(
@@ -2039,7 +2042,7 @@ fun SmartFarmPanel(
                         context.startActivity(Intent.createChooser(intent, "تصدير بيانات المزرعة"))
                     }, modifier = Modifier.fillMaxWidth()
                 ) { Text("تصدير سجلات المزرعة CSV") }
-                Text("يشمل التصدير الحيوانات والمشتريات والاستهلاك والمهام والأحداث المسجلة.", style = MaterialTheme.typography.bodySmall)
+                Text("يشمل التصدير الحيوانات والمشتريات والاستهلاك والمهام والأحداث وسجلات اللقاحات والحملات والحالة الصحية.", style = MaterialTheme.typography.bodySmall)
             }
         }
     }
