@@ -28,26 +28,28 @@ object PinSecurity {
         return "v2:${Base64.getEncoder().withoutPadding().encodeToString(salt)}:${Base64.getEncoder().withoutPadding().encodeToString(derived)}"
     }
 
-    fun verify(secret: String, encoded: String): Boolean = try {
-        val parts = encoded.split(':')
-        if (parts.size != 3) return false
-        val iterations = when (parts[0]) {
-            "v1" -> ITERATIONS_V1
-            "v2" -> ITERATIONS_V2
-            else -> return false
+    fun verify(secret: String, encoded: String): Boolean {
+        return try {
+            val parts = encoded.split(':')
+            if (parts.size != 3) return false
+            val iterations = when (parts[0]) {
+                "v1" -> ITERATIONS_V1
+                "v2" -> ITERATIONS_V2
+                else -> return false
+            }
+            val salt = Base64.getDecoder().decode(parts[1])
+            val expected = Base64.getDecoder().decode(parts[2])
+            if (salt.size != 16 || expected.size != KEY_BITS / 8) return false
+            val spec = PBEKeySpec(secret.toCharArray(), salt, iterations, KEY_BITS)
+            val actual = try {
+                SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256").generateSecret(spec).encoded
+            } finally {
+                spec.clearPassword()
+            }
+            MessageDigest.isEqual(expected, actual)
+        } catch (_: Exception) {
+            false
         }
-        val salt = Base64.getDecoder().decode(parts[1])
-        val expected = Base64.getDecoder().decode(parts[2])
-        if (salt.size != 16 || expected.size != KEY_BITS / 8) return false
-        val spec = PBEKeySpec(secret.toCharArray(), salt, iterations, KEY_BITS)
-        val actual = try {
-            SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256").generateSecret(spec).encoded
-        } finally {
-            spec.clearPassword()
-        }
-        MessageDigest.isEqual(expected, actual)
-    } catch (_: Exception) {
-        false
     }
 
     fun newRecoveryCode(): String =
