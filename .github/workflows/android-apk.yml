@@ -88,14 +88,18 @@ jobs:
         run: |
           python3 - <<'PY'
           from pathlib import Path
+          import os
           import re
 
           p = Path("app/build.gradle.kts")
           s = p.read_text()
+          expected = ("dz.murabbi.alghanm.independent2026"
+                      if os.environ.get("GITHUB_REF_NAME") == "mqane-exact-independent-copy-2026"
+                      else "dz.murabbi.alghanm.professional2026")
 
           s, count = re.subn(
               r'(?m)^(\s*applicationId\s*=\s*)["\'][^"\']+["\']',
-              r'\1"dz.murabbi.alghanm.professional2026"',
+              lambda m: m.group(1) + '"' + expected + '"',
               s
           )
 
@@ -103,7 +107,7 @@ jobs:
               raise SystemExit("ERROR: Could not set applicationId exactly once")
 
           p.write_text(s)
-          print("TEST APPLICATION ID: dz.murabbi.alghanm.professional2026")
+          print(f"TEST APPLICATION ID: {expected}")
           PY
 
           grep -n applicationId app/build.gradle.kts
@@ -111,10 +115,13 @@ jobs:
           # Verify the Gradle configuration resolves to the isolated package before building.
           python3 - <<'PY'
           from pathlib import Path
+          import os
           import re
           s = Path("app/build.gradle.kts").read_text()
           m = re.search(r'applicationId\s*=\s*"([^"]+)"', s)
-          expected = "dz.murabbi.alghanm.professional2026"
+          expected = ("dz.murabbi.alghanm.independent2026"
+                      if os.environ.get("GITHUB_REF_NAME") == "mqane-exact-independent-copy-2026"
+                      else "dz.murabbi.alghanm.professional2026")
           if not m or m.group(1) != expected:
               raise SystemExit(f"Package ID verification failed: {m.group(1) if m else 'missing'}")
           print(f"VERIFIED ISOLATED PACKAGE: {m.group(1)}")
