@@ -3,6 +3,11 @@ package dz.murabbi.alghanm
 
 import android.os.Bundle
 import android.content.Intent
+import android.graphics.BitmapFactory
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.*
@@ -960,6 +965,21 @@ fun AnimalDetailsScreen(
     var father by remember(animal.tag) {
         mutableStateOf(animal.fatherTag)
     }
+    var weaningDate by remember(animal.tag) { mutableStateOf(animal.weaningDate) }
+    var breed by remember(animal.tag) { mutableStateOf(animal.breed) }
+    var photoUri by remember(animal.tag) { mutableStateOf(animal.photoUri) }
+    val photoPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        if (uri != null) photoUri = uri.toString()
+    }
+    val profilePhoto = remember(photoUri) {
+        runCatching {
+            if (photoUri.isBlank()) null else BitmapFactory.decodeStream(
+                androidx.compose.ui.platform.LocalContext.current.contentResolver.openInputStream(android.net.Uri.parse(photoUri))
+            )?.asImageBitmap()
+        }.getOrNull()
+    }
+    val ageDays = runCatching { ChronoUnit.DAYS.between(LocalDate.parse(birthDate), LocalDate.now()) }.getOrNull()
+    val weaningAgeDays = runCatching { ChronoUnit.DAYS.between(LocalDate.parse(birthDate), LocalDate.parse(weaningDate)) }.getOrNull()
 
     var eventType by remember { mutableStateOf("تلقيح") }
     var eventDate by remember {
@@ -973,10 +993,15 @@ fun AnimalDetailsScreen(
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
 
-        Text(
-            "ملف الحيوان: ${animal.tag}",
-            style = MaterialTheme.typography.headlineSmall
-        )
+        Text("بطاقة تعريف الحيوان", style = MaterialTheme.typography.headlineSmall)
+        Text("الرقم: ${animal.tag} • ${animal.sex} • ${animal.category}", style = MaterialTheme.typography.titleMedium)
+        if (profilePhoto != null) {
+            Image(bitmap = profilePhoto, contentDescription = "صورة ${animal.tag}", modifier = Modifier.fillMaxWidth().height(190.dp))
+        } else {
+            Card(Modifier.fillMaxWidth()) { Box(Modifier.fillMaxWidth().height(110.dp), contentAlignment = androidx.compose.ui.Alignment.Center) { Text("🐑\nلا توجد صورة للحيوان", style = MaterialTheme.typography.titleMedium) } }
+        }
+        OutlinedButton(onClick = { photoPicker.launch("image/*") }, modifier = Modifier.fillMaxWidth()) { Text("اختيار صورة الحيوان") }
+        OutlinedButton(onClick = { photoUri = "" }, modifier = Modifier.fillMaxWidth(), enabled = photoUri.isNotBlank()) { Text("إزالة الصورة") }
 
         OutlinedTextField(
             weight, { weight = it },
@@ -996,6 +1021,16 @@ fun AnimalDetailsScreen(
             modifier = Modifier.fillMaxWidth()
         )
 
+        OutlinedTextField(
+            breed, { breed = it },
+            label = { Text("السلالة") }, modifier = Modifier.fillMaxWidth()
+        )
+        OutlinedTextField(
+            weaningDate, { weaningDate = it },
+            label = { Text("تاريخ الفطام (YYYY-MM-DD)") }, modifier = Modifier.fillMaxWidth()
+        )
+        Text("العمر الحالي: ${ageDays?.takeIf { it >= 0 }?.let { "${it / 30} شهر تقريباً (${it} يوم)" } ?: "أدخل تاريخ ميلاد صحيحاً"}")
+        Text("العمر عند الفطام: ${weaningAgeDays?.takeIf { it >= 0 }?.let { "${it} يوم" } ?: "غير مسجل"}")
         OutlinedTextField(
             mother, { mother = it },
             label = { Text("رقم الأم") },
@@ -1021,7 +1056,10 @@ fun AnimalDetailsScreen(
                             category = category,
                             birthDate = birthDate,
                             motherTag = mother,
-                            fatherTag = father
+                            fatherTag = father,
+                            weaningDate = weaningDate,
+                            breed = breed,
+                            photoUri = photoUri
                         )
                     )
                     message = "جارٍ حفظ التعديلات..."
@@ -1032,6 +1070,22 @@ fun AnimalDetailsScreen(
             Text("حفظ التعديلات")
         }
 
+        HorizontalDivider()
+        Text("ملخص الاحتياجات والرعاية حسب العمر", style = MaterialTheme.typography.titleMedium)
+        val daysOld = ageDays?.takeIf { it >= 0 }
+        val guidance = when {
+            daysOld == null -> "أدخل تاريخ الميلاد لتحديد المرحلة العمرية."
+            daysOld < 14 -> "مرحلة اللبأ والرضاعة: الأولوية للبأ سريعاً بعد الولادة، والرضاعة المنتظمة والدفء ومراقبة السرة والإسهال. لا تقدم مكملات مركزة عشوائياً."
+            daysOld < 60 -> "مرحلة الرضاعة والنمو المبكر: ماء نظيف متاح، وتعويد تدريجي على علف بادئ مخصص للحملان مع علف خشن جيد، ومتابعة الوزن أسبوعياً."
+            daysOld < 120 -> "مرحلة ما حول الفطام: يجب أن يكون الحمل يأكل العلف والمواد الخشنة ويشرب جيداً قبل الفطام؛ خفّض الاعتماد على الحليب تدريجياً وتجنب تغيير العليقة فجأة."
+            else -> "مرحلة النمو أو البلوغ: احسب المادة الجافة والطاقة والبروتين حسب الوزن والسلالة والجنس والهدف الإنتاجي، مع تعديل الحصة وفق حالة الجسم وجودة العلف."
+        }
+        Card { Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text(guidance)
+            Text("الماء: متاح ونظيف باستمرار، وتزداد الحاجة مع الحر والرضاعة والعلف الجاف.")
+            Text("الأملاح والفيتامينات: استخدم مخلوطاً مخصصاً للأغنام وفق تحليل العلف والمنطقة؛ تجنب خلطات الأبقار لاحتمال زيادة النحاس، ولا تعطِ حقن الفيتامينات أو السيلينيوم دون بيطري.")
+            Text("للحساب الرقمي للمادة الجافة والطاقة والبروتين: افتح الإدارة ← المرشد العلمي، واختر الحيوان وأدخل وزنه ومرحلته الإنتاجية.")
+        } }
         HorizontalDivider()
         Text("إضافة حدث للحيوان", style = MaterialTheme.typography.titleMedium)
 
