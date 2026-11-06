@@ -131,7 +131,7 @@ jobs:
           from pathlib import Path
           import re
           s = Path("app/build.gradle.kts").read_text()
-          m = re.search(r'applicationId\\s*=\\s*"([^"]+)"', s)
+          m = re.search(r'applicationId\s*=\s*"([^"]+)"', s)
           expected = "dz.murabbi.alghanm.animalcards2026"
           if not m or m.group(1) != expected:
               raise SystemExit(f"Package ID verification failed: {m.group(1) if m else 'missing'}")
