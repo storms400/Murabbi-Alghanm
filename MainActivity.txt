@@ -2219,12 +2219,13 @@ fun SmartFarmPanel(
                         val amount = financeAmount.replace(',', '.').toDoubleOrNull() ?: 0.0
                         saving = true
                         val entry = FinanceEntry(id = editingFinanceId, entryType = financeType, category = financeCategory, amountDzd = amount, entryDate = today.toString(), description = financeDescription.trim())
-                        val save: ((Boolean) -> Unit) -> Unit = if (editingFinanceId > 0L) ({ result -> onUpdateFinance(entry, result) }) else ({ result -> onAddFinance(entry, result) })
-                        save { ok ->
+                        val wasEditing = editingFinanceId > 0L
+                        val finishSave: (Boolean) -> Unit = { ok ->
                             saving = false
-                            message = if (ok) (if (editingFinanceId > 0L) "تم تحديث الحركة المالية." else "تم تسجيل الحركة المالية.") else "تعذر الحفظ."
+                            message = if (ok) (if (wasEditing) "تم تحديث الحركة المالية." else "تم تسجيل الحركة المالية.") else "تعذر الحفظ."
                             if (ok) { financeAmount = ""; financeDescription = ""; editingFinanceId = 0L }
                         }
+                        if (wasEditing) onUpdateFinance(entry, finishSave) else onAddFinance(entry, finishSave)
                     }, modifier = Modifier.fillMaxWidth()) { Text("حفظ الحركة المالية") }
                 val income = financeEntries.filter { it.entryType == "إيراد" }.sumOf { it.amountDzd }
                 val expense = financeEntries.filter { it.entryType == "مصروف" }.sumOf { it.amountDzd }
