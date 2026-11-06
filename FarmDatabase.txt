@@ -1,3 +1,4 @@
+// Mqane independent edition: isolated local storage.
 
 package dz.murabbi.alghanm.data
 
