@@ -109,7 +109,7 @@ jobs:
 
           s, count = re.subn(
               r'(?m)^(\s*applicationId\s*=\s*)["\'][^"\']+["\']',
-              r'\1"dz.murabbi.alghanm.test5"',
+              r'\1"dz.murabbi.alghanm.scientific"',
               s
           )
 
@@ -117,7 +117,7 @@ jobs:
               raise SystemExit("ERROR: Could not set applicationId exactly once")
 
           p.write_text(s)
-          print("TEST APPLICATION ID: dz.murabbi.alghanm.test5")
+          print("TEST APPLICATION ID: dz.murabbi.alghanm.scientific")
           PY
 
           grep -n applicationId app/build.gradle.kts
