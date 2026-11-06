@@ -86,6 +86,44 @@ data class AnimalCareStatus(
     val status: String = "طبيعي", val notes: String = "", val updatedAt: Long = System.currentTimeMillis()
 )
 
+
+@Entity(tableName = "treatment_records")
+data class TreatmentRecord(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val animalTag: String, val diagnosis: String, val medicineName: String,
+    val dose: String = "", val startDate: String, val endDate: String = "",
+    val veterinarian: String = "", val withdrawalUntil: String = "", val notes: String = ""
+)
+
+@Entity(tableName = "reproduction_records")
+data class ReproductionRecord(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val femaleTag: String, val maleTag: String = "", val eventType: String,
+    val eventDate: String, val expectedDate: String = "", val offspringCount: Int = 0,
+    val notes: String = ""
+)
+
+@Entity(tableName = "medicine_stock")
+data class MedicineStock(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val medicineName: String, val batchNumber: String = "", val quantity: Double,
+    val unit: String = "جرعة", val expiryDate: String, val purchaseDate: String = "",
+    val supplier: String = "", val notes: String = ""
+)
+
+@Entity(tableName = "audit_entries")
+data class AuditEntry(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val action: String, val recordType: String, val recordId: String = "",
+    val details: String = "", val createdAt: Long = System.currentTimeMillis()
+)
+
+@Entity(tableName = "app_users")
+data class AppUser(
+    @PrimaryKey val username: String, val role: String,
+    val pinHash: String, val active: Boolean = true
+)
+
 @Dao
 abstract class FarmDao {
 
@@ -192,6 +230,17 @@ abstract class FarmDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     abstract suspend fun saveAnimalCareStatus(status: AnimalCareStatus)
 
+    @Insert abstract suspend fun addTreatment(record: TreatmentRecord)
+    @Query("SELECT * FROM treatment_records ORDER BY startDate DESC, id DESC") abstract fun treatments(): Flow<List<TreatmentRecord>>
+    @Insert abstract suspend fun addReproduction(record: ReproductionRecord)
+    @Query("SELECT * FROM reproduction_records ORDER BY eventDate DESC, id DESC") abstract fun reproductionRecords(): Flow<List<ReproductionRecord>>
+    @Insert abstract suspend fun addMedicineStock(item: MedicineStock)
+    @Query("SELECT * FROM medicine_stock ORDER BY expiryDate ASC, id DESC") abstract fun medicineStock(): Flow<List<MedicineStock>>
+    @Insert abstract suspend fun addAuditEntry(entry: AuditEntry)
+    @Query("SELECT * FROM audit_entries ORDER BY createdAt DESC") abstract fun auditEntries(): Flow<List<AuditEntry>>
+    @Insert(onConflict = OnConflictStrategy.REPLACE) abstract suspend fun saveAppUser(user: AppUser)
+    @Query("SELECT * FROM app_users WHERE active = 1 ORDER BY username") abstract fun appUsers(): Flow<List<AppUser>>
+
     @Query("SELECT COUNT(*) FROM animals WHERE active = 1")
     abstract fun activeCount(): Flow<Int>
 }
@@ -205,9 +254,11 @@ abstract class FarmDao {
         HerdEvent::class,
         VaccineDoseRecord::class,
         VaccineCampaign::class,
-        AnimalCareStatus::class
+        AnimalCareStatus::class,
+        TreatmentRecord::class, ReproductionRecord::class, MedicineStock::class,
+        AuditEntry::class, AppUser::class
     ],
-    version = 4,
+    version = 5,
     exportSchema = true
 )
 abstract class FarmDatabase : RoomDatabase() {
@@ -251,14 +302,24 @@ abstract class FarmDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("CREATE TABLE IF NOT EXISTS treatment_records (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, animalTag TEXT NOT NULL, diagnosis TEXT NOT NULL, medicineName TEXT NOT NULL, dose TEXT NOT NULL, startDate TEXT NOT NULL, endDate TEXT NOT NULL, veterinarian TEXT NOT NULL, withdrawalUntil TEXT NOT NULL, notes TEXT NOT NULL)")
+                db.execSQL("CREATE TABLE IF NOT EXISTS reproduction_records (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, femaleTag TEXT NOT NULL, maleTag TEXT NOT NULL, eventType TEXT NOT NULL, eventDate TEXT NOT NULL, expectedDate TEXT NOT NULL, offspringCount INTEGER NOT NULL, notes TEXT NOT NULL)")
+                db.execSQL("CREATE TABLE IF NOT EXISTS medicine_stock (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, medicineName TEXT NOT NULL, batchNumber TEXT NOT NULL, quantity REAL NOT NULL, unit TEXT NOT NULL, expiryDate TEXT NOT NULL, purchaseDate TEXT NOT NULL, supplier TEXT NOT NULL, notes TEXT NOT NULL)")
+                db.execSQL("CREATE TABLE IF NOT EXISTS audit_entries (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, action TEXT NOT NULL, recordType TEXT NOT NULL, recordId TEXT NOT NULL, details TEXT NOT NULL, createdAt INTEGER NOT NULL)")
+                db.execSQL("CREATE TABLE IF NOT EXISTS app_users (username TEXT NOT NULL PRIMARY KEY, role TEXT NOT NULL, pinHash TEXT NOT NULL, active INTEGER NOT NULL)")
+            }
+        }
+
         fun get(context: Context): FarmDatabase =
             INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(
                     context.applicationContext,
                     FarmDatabase::class.java,
-                    "mawashi_pro_v3_standalone20261106.db"
+                    "mawashi_pro_v4_standalone20261106.db"
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
                     .build()
                     .also { INSTANCE = it }
             }
