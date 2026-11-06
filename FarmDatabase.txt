@@ -14,6 +14,9 @@ data class Animal(
     val category: String,
     val weightKg: Double,
     val birthDate: String = "",
+    val weaningDate: String = "",
+    val breed: String = "",
+    val photoUri: String = "",
     val motherTag: String = "",
     val fatherTag: String = "",
     val active: Boolean = true,
@@ -166,7 +169,7 @@ abstract class FarmDao {
         FarmTask::class,
         HerdEvent::class
     ],
-    version = 2,
+    version = 3,
     exportSchema = true
 )
 abstract class FarmDatabase : RoomDatabase() {
@@ -194,6 +197,14 @@ abstract class FarmDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE animals ADD COLUMN weaningDate TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE animals ADD COLUMN breed TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE animals ADD COLUMN photoUri TEXT NOT NULL DEFAULT ''")
+            }
+        }
+
         fun get(context: Context): FarmDatabase =
             INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(
@@ -201,7 +212,7 @@ abstract class FarmDatabase : RoomDatabase() {
                     FarmDatabase::class.java,
                     "murabbi_alghanm.db"
                 )
-                    .addMigrations(MIGRATION_1_2)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
                     .build()
                     .also { INSTANCE = it }
             }
