@@ -22,6 +22,7 @@ name: Build Android APK
       - "mqane-vaccination-independent-2026"
       - "mqane-professional-pages-independent-2026"
       - "mqane-exact-independent-copy-2026"
+      - "mqane-auto-calendar-independent-2026"
 
 jobs:
   build:
@@ -96,8 +97,11 @@ jobs:
 
           p = Path("app/build.gradle.kts")
           s = p.read_text()
-          expected = ("dz.murabbi.alghanm.independent2026"
-                      if os.environ.get("GITHUB_REF_NAME") == "mqane-exact-independent-copy-2026"
+          branch = os.environ.get("GITHUB_REF_NAME")
+          expected = ("dz.murabbi.alghanm.calendarstandalone20261106"
+                      if branch == "mqane-auto-calendar-independent-2026"
+                      else "dz.murabbi.alghanm.independent2026"
+                      if branch == "mqane-exact-independent-copy-2026"
                       else "dz.murabbi.alghanm.professional2026")
 
           s, count = re.subn(
@@ -122,8 +126,11 @@ jobs:
           import re
           s = Path("app/build.gradle.kts").read_text()
           m = re.search(r'applicationId\s*=\s*"([^"]+)"', s)
-          expected = ("dz.murabbi.alghanm.independent2026"
-                      if os.environ.get("GITHUB_REF_NAME") == "mqane-exact-independent-copy-2026"
+          branch = os.environ.get("GITHUB_REF_NAME")
+          expected = ("dz.murabbi.alghanm.calendarstandalone20261106"
+                      if branch == "mqane-auto-calendar-independent-2026"
+                      else "dz.murabbi.alghanm.independent2026"
+                      if branch == "mqane-exact-independent-copy-2026"
                       else "dz.murabbi.alghanm.professional2026")
           if not m or m.group(1) != expected:
               raise SystemExit(f"Package ID verification failed: {m.group(1) if m else 'missing'}")
@@ -133,9 +140,28 @@ jobs:
       - name: Build APK
         run: gradle --no-daemon :app:assembleDebug
 
+      - name: Verify standalone package and isolated database
+        run: |
+          set -e
+          APK="app/build/outputs/apk/debug/app-debug.apk"
+          AAPT="$(find "$ANDROID_HOME/build-tools" -type f -name aapt | sort -V | tail -n 1)"
+          if [ -z "$AAPT" ]; then
+            echo "ERROR: Android build-tools aapt was not found"
+            exit 1
+          fi
+          ACTUAL_PACKAGE="$("$AAPT" dump badging "$APK" | sed -n "s/^package: name='\\([^']*\\)'.*/\\1/p" | head -n 1)"
+          EXPECTED_PACKAGE="dz.murabbi.alghanm.calendarstandalone20261106"
+          if [ "$ACTUAL_PACKAGE" != "$EXPECTED_PACKAGE" ]; then
+            echo "ERROR: APK package is $ACTUAL_PACKAGE, expected $EXPECTED_PACKAGE"
+            exit 1
+          fi
+          grep -q '"murabbi_calendar_standalone20261106.db"' app/src/main/java/dz/murabbi/alghanm/data/FarmDatabase.kt
+          echo "VERIFIED APK PACKAGE: $ACTUAL_PACKAGE"
+          echo "VERIFIED DATABASE: murabbi_calendar_standalone20261106.db"
+
       - uses: actions/upload-artifact@v4
         with:
-          name: MurabbiAlghanm-Professional-Independent-APK
+          name: Mqane-Calendar-Standalone-20261106-APK
           path: app/build/outputs/apk/debug/app-debug.apk
 
 # Rebuild the professional sheep-icon test APK

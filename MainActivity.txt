@@ -45,6 +45,8 @@ import dz.murabbi.alghanm.data.*
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import java.time.LocalDate
+import java.time.Instant
+import java.time.ZoneOffset
 import java.time.temporal.ChronoUnit
 import java.util.Locale
 
@@ -1194,6 +1196,58 @@ fun CareScreen(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun CalendarDateField(
+    label: String,
+    value: String,
+    onDateSelected: (String) -> Unit
+) {
+    var showPicker by remember { mutableStateOf(false) }
+    val parsedDate = remember(value) {
+        runCatching { LocalDate.parse(value) }.getOrNull()
+    }
+
+    OutlinedTextField(
+        value = parsedDate?.let {
+            "%02d/%02d/%04d".format(Locale("ar"), it.dayOfMonth, it.monthValue, it.year)
+        } ?: "",
+        onValueChange = {},
+        readOnly = true,
+        label = { Text(label) },
+        placeholder = { Text("اختر التاريخ من التقويم") },
+        trailingIcon = {
+            TextButton(onClick = { showPicker = true }) { Text("📅") }
+        },
+        modifier = Modifier.fillMaxWidth().clickable { showPicker = true }
+    )
+
+    if (showPicker) {
+        val pickerState = rememberDatePickerState(
+            initialSelectedDateMillis = parsedDate
+                ?.atStartOfDay(ZoneOffset.UTC)?.toInstant()?.toEpochMilli()
+        )
+        DatePickerDialog(
+            onDismissRequest = { showPicker = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    pickerState.selectedDateMillis?.let { millis ->
+                        val selected = Instant.ofEpochMilli(millis)
+                            .atZone(ZoneOffset.UTC).toLocalDate()
+                        onDateSelected(selected.toString())
+                    }
+                    showPicker = false
+                }) { Text("اختيار") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showPicker = false }) { Text("إلغاء") }
+            }
+        ) {
+            DatePicker(state = pickerState, showModeToggle = true)
+        }
+    }
+}
+
 @Composable
 fun AnimalDetailsScreen(
     animal: Animal,
@@ -1272,19 +1326,20 @@ fun AnimalDetailsScreen(
             modifier = Modifier.fillMaxWidth()
         )
 
-        OutlinedTextField(
-            birthDate, { birthDate = it },
-            label = { Text("تاريخ الميلاد") },
-            modifier = Modifier.fillMaxWidth()
+        CalendarDateField(
+            label = "تاريخ الميلاد",
+            value = birthDate,
+            onDateSelected = { birthDate = it }
         )
 
         OutlinedTextField(
             breed, { breed = it },
             label = { Text("السلالة") }, modifier = Modifier.fillMaxWidth()
         )
-        OutlinedTextField(
-            weaningDate, { weaningDate = it },
-            label = { Text("تاريخ الفطام (YYYY-MM-DD)") }, modifier = Modifier.fillMaxWidth()
+        CalendarDateField(
+            label = "تاريخ الفطام",
+            value = weaningDate,
+            onDateSelected = { weaningDate = it }
         )
         Text("العمر الحالي: ${ageDays?.takeIf { it >= 0 }?.let { "${it / 30} شهر تقريباً (${it} يوم)" } ?: "أدخل تاريخ ميلاد صحيحاً"}")
         Text("العمر عند الفطام: ${weaningAgeDays?.takeIf { it >= 0 }?.let { "${it} يوم" } ?: "غير مسجل"}")
@@ -1352,10 +1407,10 @@ fun AnimalDetailsScreen(
             modifier = Modifier.fillMaxWidth()
         )
 
-        OutlinedTextField(
-            eventDate, { eventDate = it },
-            label = { Text("التاريخ") },
-            modifier = Modifier.fillMaxWidth()
+        CalendarDateField(
+            label = "تاريخ الحدث",
+            value = eventDate,
+            onDateSelected = { eventDate = it }
         )
 
         OutlinedTextField(
@@ -1687,7 +1742,11 @@ fun SmartFarmPanel(
                 DropdownField("نوع الحدث", eventType,
                     listOf("تلقيح", "تطعيم", "علاج", "فحص بيطري", "ولادة", "فطام", "بيع", "مصروف"),
                     { eventType = it })
-                OutlinedTextField(eventDate, { eventDate = it }, label = { Text("التاريخ (YYYY-MM-DD)") }, modifier = Modifier.fillMaxWidth())
+                CalendarDateField(
+                    label = "تاريخ الحدث",
+                    value = eventDate,
+                    onDateSelected = { eventDate = it }
+                )
                 if (eventType == "بيع" || eventType == "مصروف") {
                     OutlinedTextField(eventAmount, { eventAmount = it }, label = { Text("المبلغ بالدينار الجزائري") }, modifier = Modifier.fillMaxWidth())
                 }
@@ -1729,7 +1788,11 @@ fun SmartFarmPanel(
             "الوزن والنمو" -> {
                 Text("تسجيل متابعة الوزن", style = MaterialTheme.typography.titleMedium)
                 DropdownField("الحيوان", targetTag, animals.map { it.tag }, { targetTag = it })
-                OutlinedTextField(eventDate, { eventDate = it }, label = { Text("تاريخ القياس") }, modifier = Modifier.fillMaxWidth())
+                CalendarDateField(
+                    label = "تاريخ القياس",
+                    value = eventDate,
+                    onDateSelected = { eventDate = it }
+                )
                 OutlinedTextField(eventAmount, { eventAmount = it }, label = { Text("الوزن بالكغ") }, modifier = Modifier.fillMaxWidth())
                 Button(
                     enabled = !saving && animals.isNotEmpty(),
@@ -1762,7 +1825,11 @@ fun SmartFarmPanel(
                 DropdownField("نوع الموعد", taskType,
                     listOf("موعد تلقيح", "ولادة متوقعة", "تطعيم", "علاج", "فحص بيطري", "قص الصوف", "شراء علف", "أخرى"),
                     { taskType = it })
-                OutlinedTextField(taskDate, { taskDate = it }, label = { Text("التاريخ (YYYY-MM-DD)") }, modifier = Modifier.fillMaxWidth())
+                CalendarDateField(
+                    label = "تاريخ الموعد",
+                    value = taskDate,
+                    onDateSelected = { taskDate = it }
+                )
                 OutlinedTextField(taskCount, { taskCount = it }, label = { Text("عدد الحيوانات") }, modifier = Modifier.fillMaxWidth())
                 OutlinedTextField(taskNotes, { taskNotes = it }, label = { Text("ملاحظات") }, modifier = Modifier.fillMaxWidth())
                 Button(
