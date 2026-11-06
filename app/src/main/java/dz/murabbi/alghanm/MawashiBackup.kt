@@ -30,14 +30,14 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 /**
- * Streaming, password-encrypted V12 backup. No database, photo, archive or
+ * Streaming, password-encrypted V13 backup. No database, photo, archive or
  * ciphertext is loaded wholesale into memory. The DB is staged and validated
  * before the live database is replaced.
  */
 object MawashiBackup {
     private val magic = "MWB12".toByteArray(Charsets.US_ASCII)
     private const val MAX_BACKUP_BYTES = 150L * 1024L * 1024L
-    private const val DB_NAME = "mawashi_pro_v12_standalone20261106.db"
+    private const val DB_NAME = "mawashi_pro_v13_standalone20261106.db"
     private const val ROOM_VERSION = 9
     private val requiredTables = setOf(
         "animals", "feed_purchases", "feed_consumptions", "farm_tasks",
@@ -109,7 +109,7 @@ object MawashiBackup {
                     val header = ByteArray(magic.size + 16 + 12)
                     input.readFully(header)
                     require(header.copyOfRange(0, magic.size).contentEquals(magic)) {
-                        "صيغة النسخة غير معروفة أو ليست نسخة مواشي V12."
+                        "صيغة النسخة غير معروفة أو ليست نسخة مواشي V13."
                     }
                     val salt = header.copyOfRange(magic.size, magic.size + 16)
                     val iv = header.copyOfRange(magic.size + 16, header.size)
@@ -208,7 +208,7 @@ object MawashiBackup {
             }
             db.rawQuery("PRAGMA user_version", null).use { c ->
                 require(c.moveToFirst() && c.getInt(0) == ROOM_VERSION) {
-                    "إصدار قاعدة البيانات غير متوافق مع مواشي V12."
+                    "إصدار قاعدة البيانات غير متوافق مع مواشي V13."
                 }
             }
             val tables = mutableSetOf<String>()
