@@ -153,7 +153,9 @@ jobs:
           s = Path("app/build.gradle.kts").read_text()
           m = re.search(r'applicationId\s*=\s*"([^"]+)"', s)
           branch = os.environ.get("GITHUB_REF_NAME")
-          expected = ("dz.murabbi.alghanm.mawashi.pro20261106"
+          expected = ("dz.murabbi.alghanm.mawashi.prov220261106"
+                      if branch == "mawashi-pro-v2-dose-reminders-20261106"
+                      else "dz.murabbi.alghanm.mawashi.pro20261106"
                       if branch == "mawashi-pro-vaccination-standalone-20261106"
                       else "dz.murabbi.alghanm.mawashi20261106"
                       if branch == "mawashi-vaccination-standalone-20261106"
