@@ -521,7 +521,10 @@ fun FarmScreen(vm: FarmViewModel) {
                                 },
                                 onAddTask = { type, date, count, notes, result ->
                                     vm.addTask(type, date, count, notes, result)
-                                }
+                                },
+                                onAddTreatment = { record, result -> vm.addTreatment(record, result) },
+                                onAddMedicineStock = { item, result -> vm.addMedicineStock(item, result) },
+                                onAddReproduction = { record, result -> vm.addReproduction(record, result) }
                             )
                         }
                     }
@@ -540,7 +543,10 @@ fun HomeScreen(
     events: List<HerdEvent>,
     onNavigate: (Int) -> Unit,
     onAddEvent: (String, String, String, String, (Boolean) -> Unit) -> Unit,
-    onAddTask: (String, String, Int, String, (Boolean) -> Unit) -> Unit
+    onAddTask: (String, String, Int, String, (Boolean) -> Unit) -> Unit,
+    onAddTreatment: (TreatmentRecord, (Boolean) -> Unit) -> Unit,
+    onAddMedicineStock: (MedicineStock, (Boolean) -> Unit) -> Unit,
+    onAddReproduction: (ReproductionRecord, (Boolean) -> Unit) -> Unit
 ) {
     val totalPurchased = purchases.sumOf { it.quantityKg }
     val totalConsumed = consumptions.sumOf { it.quantityKg }
@@ -2059,7 +2065,7 @@ fun SmartFarmPanel(
                 Button(enabled = !saving && targetTag.isNotBlank() && treatmentDiagnosis.isNotBlank() && treatmentMedicine.isNotBlank(),
                     onClick = {
                         saving = true
-                        vm.addTreatment(TreatmentRecord(animalTag = targetTag, diagnosis = treatmentDiagnosis.trim(),
+                        onAddTreatment(TreatmentRecord(animalTag = targetTag, diagnosis = treatmentDiagnosis.trim(),
                             medicineName = treatmentMedicine.trim(), dose = treatmentDose.trim(),
                             startDate = today.toString(), withdrawalUntil = treatmentWithdrawal.trim())) { ok ->
                             saving = false
@@ -2078,7 +2084,7 @@ fun SmartFarmPanel(
                         if (runCatching { LocalDate.parse(medicineExpiry) }.isFailure) { message = "تحقق من تاريخ الصلاحية." }
                         else {
                             saving = true
-                            vm.addMedicineStock(MedicineStock(medicineName = medicineName.trim(), quantity = qty, expiryDate = medicineExpiry)) { ok ->
+                            onAddMedicineStock(MedicineStock(medicineName = medicineName.trim(), quantity = qty, expiryDate = medicineExpiry)) { ok ->
                                 saving = false
                                 message = if (ok) "تم تسجيل الدواء." else "تعذر تسجيل الدواء."
                                 if (ok) { medicineName = ""; medicineQuantity = "" }
@@ -2104,7 +2110,7 @@ fun SmartFarmPanel(
                             message = "تحقق من التاريخ وعدد المواليد."
                         } else {
                             saving = true
-                            vm.addReproduction(ReproductionRecord(femaleTag = targetTag, maleTag = reproductionMale.trim(),
+                            onAddReproduction(ReproductionRecord(femaleTag = targetTag, maleTag = reproductionMale.trim(),
                                 eventType = reproductionType, eventDate = eventDate, expectedDate = reproductionExpected,
                                 offspringCount = count)) { ok ->
                                 saving = false
