@@ -198,7 +198,7 @@ class FarmViewModel(private val dao: FarmDao) : ViewModel() {
         viewModelScope.launch { onResult(runCatching { dao.deleteTreatmentAndRestoreStock(id) }.getOrDefault(false)) }
     }
     fun deleteMedicineStock(id: Long, onResult: (Boolean) -> Unit) {
-        viewModelScope.launch { onResult(runCatching { dao.deleteMedicineStock(id); dao.addAuditEntry(AuditEntry(action = "حذف", recordType = "مخزون دواء", recordId = id.toString())) }.isSuccess) }
+        viewModelScope.launch { onResult(runCatching { dao.deleteMedicineStockSafely(id) }.getOrDefault(false)) }
     }
     fun deleteReproduction(id: Long, onResult: (Boolean) -> Unit) {
         viewModelScope.launch { onResult(runCatching { dao.deleteReproduction(id); dao.addAuditEntry(AuditEntry(action = "حذف", recordType = "تكاثر", recordId = id.toString())) }.isSuccess) }
