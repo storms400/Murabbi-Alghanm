@@ -30,6 +30,7 @@ name: Build Android APK
       - "mawashi-pro-v5-professional-20261106"
       - "mawashi-pro-v6-independent-20261106"
       - "mawashi-pro-v7-independent-20261106"
+      - "mawashi-pro-v8-independent-20261106"
 
 jobs:
   build:
@@ -124,7 +125,9 @@ jobs:
           p = Path("app/build.gradle.kts")
           s = p.read_text()
           branch = os.environ.get("GITHUB_REF_NAME")
-          expected = ("dz.murabbi.alghanm.mawashi.prov720261106"
+          expected = ("dz.murabbi.alghanm.mawashi.prov820261106"
+                      if branch == "mawashi-pro-v8-independent-20261106"
+                      else "dz.murabbi.alghanm.mawashi.prov720261106"
                       if branch == "mawashi-pro-v7-independent-20261106"
                       else "dz.murabbi.alghanm.mawashi.prov620261106"
                       if branch == "mawashi-pro-v6-independent-20261106"
@@ -204,14 +207,18 @@ jobs:
             exit 1
           fi
           ACTUAL_PACKAGE="$("$AAPT" dump badging "$APK" | sed -n "s/^package: name='\\([^']*\\)'.*/\\1/p" | head -n 1)"
-          EXPECTED_PACKAGE="dz.murabbi.alghanm.mawashi.prov720261106"
+          EXPECTED_PACKAGE="dz.murabbi.alghanm.mawashi.prov820261106"
           if [ "$ACTUAL_PACKAGE" != "$EXPECTED_PACKAGE" ]; then
             echo "ERROR: APK package is $ACTUAL_PACKAGE, expected $EXPECTED_PACKAGE"
             exit 1
           fi
-          grep -q '"mawashi_pro_v7_standalone20261106.db"' app/src/main/java/dz/murabbi/alghanm/data/FarmDatabase.kt
+          grep -q '"mawashi_pro_v8_standalone20261106.db"' app/src/main/java/dz/murabbi/alghanm/data/FarmDatabase.kt
           echo "VERIFIED APK PACKAGE: $ACTUAL_PACKAGE"
-          echo "VERIFIED DATABASE: mawashi_pro_v7_standalone20261106.db"
+          echo "VERIFIED DATABASE: mawashi_pro_v8_standalone20261106.db"
+          grep -q "addReproductionWithOffspring" FarmDatabase.txt
+          grep -q "offspringTags" MainActivity.txt
+          grep -q "linkAnimalParents" FarmDatabase.txt
+          echo "VERIFIED AUTOMATIC OFFSPRING PARENTAGE LINKING"
           grep -q "CREATE TABLE IF NOT EXISTS treatment_records" FarmDatabase.txt
           grep -q "CREATE TABLE IF NOT EXISTS reproduction_records" FarmDatabase.txt
           grep -q "CREATE TABLE IF NOT EXISTS medicine_stock" FarmDatabase.txt
@@ -232,7 +239,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: Mawashi-Pro-V7-Standalone-20261106-APK
+          name: Mawashi-Pro-V8-Standalone-20261106-APK
           path: app/build/outputs/apk/debug/app-debug.apk
 
 # Rebuild the professional sheep-icon test APK
