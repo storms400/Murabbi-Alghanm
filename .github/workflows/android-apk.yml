@@ -25,6 +25,7 @@ name: Build Android APK
       - "mqane-auto-calendar-independent-2026"
       - "mawashi-vaccination-standalone-20261106"
       - "mawashi-pro-vaccination-standalone-20261106"
+      - "mawashi-pro-v2-dose-reminders-20261106"
 
 jobs:
   build:
@@ -119,8 +120,8 @@ jobs:
           p = Path("app/build.gradle.kts")
           s = p.read_text()
           branch = os.environ.get("GITHUB_REF_NAME")
-          expected = ("dz.murabbi.alghanm.mawashi.pro20261106"
-                      if branch == "mawashi-pro-vaccination-standalone-20261106"
+          expected = ("dz.murabbi.alghanm.mawashi.prov220261106"
+                      if branch == "mawashi-pro-v2-dose-reminders-20261106"
                       else "dz.murabbi.alghanm.mawashi20261106"
                       if branch == "mawashi-vaccination-standalone-20261106"
                       else "dz.murabbi.alghanm.calendarstandalone20261106"
@@ -184,7 +185,7 @@ jobs:
             echo "ERROR: APK package is $ACTUAL_PACKAGE, expected $EXPECTED_PACKAGE"
             exit 1
           fi
-          grep -q '"mawashi_pro_standalone20261106.db"' app/src/main/java/dz/murabbi/alghanm/data/FarmDatabase.kt
+          grep -q '"mawashi_pro_v2_standalone20261106.db"' app/src/main/java/dz/murabbi/alghanm/data/FarmDatabase.kt
           echo "VERIFIED APK PACKAGE: $ACTUAL_PACKAGE"
           echo "VERIFIED DATABASE: mawashi_pro_standalone20261106.db"
           grep -q "CREATE TABLE IF NOT EXISTS vaccine_dose_records" FarmDatabase.txt
@@ -194,7 +195,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: Mawashi-Vet-Pro-Standalone-20261106-APK
+          name: Mawashi-Pro-V2-Standalone-20261106-APK
           path: app/build/outputs/apk/debug/app-debug.apk
 
 # Rebuild the professional sheep-icon test APK
