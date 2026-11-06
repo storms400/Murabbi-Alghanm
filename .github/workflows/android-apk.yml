@@ -17,6 +17,7 @@ name: Build Android APK
       - "mqane-inspired-interface"
       - "mqane-comprehensive-independent"
       - "mqane-vaccination-independent-2026"
+      - "mqane-professional-pages-independent-2026"
 
 jobs:
   build:
