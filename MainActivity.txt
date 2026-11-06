@@ -610,6 +610,9 @@ fun HomeScreen(
             }
         }
         item {
+            HerdInsightsCard(animals = animals, tasks = tasks, events = events)
+        }
+        item {
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
