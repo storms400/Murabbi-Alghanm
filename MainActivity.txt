@@ -1407,12 +1407,11 @@ fun AnimalDetailsScreen(
             modifier = Modifier.fillMaxWidth()
         )
 
-        OutlinedTextField(
-            CalendarDateField(
-                label = "تاريخ الحدث",
-                value = eventDate,
-                onDateSelected = { eventDate = it }
-            )
+        CalendarDateField(
+            label = "تاريخ الحدث",
+            value = eventDate,
+            onDateSelected = { eventDate = it }
+        )
 
         OutlinedTextField(
             eventNotes, { eventNotes = it },
