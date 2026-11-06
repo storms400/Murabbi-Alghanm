@@ -543,10 +543,7 @@ fun HomeScreen(
     events: List<HerdEvent>,
     onNavigate: (Int) -> Unit,
     onAddEvent: (String, String, String, String, (Boolean) -> Unit) -> Unit,
-    onAddTask: (String, String, Int, String, (Boolean) -> Unit) -> Unit,
-    onAddTreatment: (TreatmentRecord, (Boolean) -> Unit) -> Unit,
-    onAddMedicineStock: (MedicineStock, (Boolean) -> Unit) -> Unit,
-    onAddReproduction: (ReproductionRecord, (Boolean) -> Unit) -> Unit
+    onAddTask: (String, String, Int, String, (Boolean) -> Unit) -> Unit
 ) {
     val totalPurchased = purchases.sumOf { it.quantityKg }
     val totalConsumed = consumptions.sumOf { it.quantityKg }
@@ -1669,7 +1666,10 @@ fun SmartFarmPanel(
     initialSection: String,
     onBack: () -> Unit,
     onAddEvent: (String, String, String, String, (Boolean) -> Unit) -> Unit,
-    onAddTask: (String, String, Int, String, (Boolean) -> Unit) -> Unit
+    onAddTask: (String, String, Int, String, (Boolean) -> Unit) -> Unit,
+    onAddTreatment: (TreatmentRecord, (Boolean) -> Unit) -> Unit,
+    onAddMedicineStock: (MedicineStock, (Boolean) -> Unit) -> Unit,
+    onAddReproduction: (ReproductionRecord, (Boolean) -> Unit) -> Unit
 ) {
     val context = LocalContext.current
     val today = LocalDate.now()
