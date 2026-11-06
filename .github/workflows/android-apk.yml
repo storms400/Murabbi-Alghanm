@@ -124,7 +124,7 @@ jobs:
           s = Path("app/build.gradle.kts").read_text()
           m = re.search(r'applicationId\s*=\s*"([^"]+)"', s)
           expected = ("dz.murabbi.alghanm.independent2026"
-                      if os.environ.get("GITHUB_REF_NAME") == "mqane-exact-independent-copy-2026"
+                      if os.environ.get("GITHUB_REF_NAME") in ("mqane-exact-independent-copy-2026", "mqane-auto-calendar-independent-2026")
                       else "dz.murabbi.alghanm.professional2026")
           if not m or m.group(1) != expected:
               raise SystemExit(f"Package ID verification failed: {m.group(1) if m else 'missing'}")
