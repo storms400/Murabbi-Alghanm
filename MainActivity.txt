@@ -626,6 +626,58 @@ fun HomeScreen(
 }
 
 @Composable
+fun HerdInsightsCard(
+    animals: List<Animal>,
+    tasks: List<FarmTask>,
+    events: List<HerdEvent>
+) {
+    val today = LocalDate.now()
+    val overdue = tasks.count { task ->
+        !task.completed && runCatching { LocalDate.parse(task.taskDate) }.getOrNull()?.isBefore(today) == true
+    }
+    val dueSoon = tasks.count { task ->
+        val date = runCatching { LocalDate.parse(task.taskDate) }.getOrNull()
+        !task.completed && date != null && !date.isBefore(today) && !date.isAfter(today.plusDays(7))
+    }
+    val recentEvents = events.filter { event ->
+        val date = runCatching { LocalDate.parse(event.eventDate) }.getOrNull()
+        date != null && !date.isBefore(today.minusDays(29)) && !date.isAfter(today)
+    }
+    val missingBirthDates = animals.count { it.birthDate.isBlank() }
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        shape = MaterialTheme.shapes.large
+    ) {
+        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("مؤشرات متابعة القطيع", style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.primary)
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Text("مهام متأخرة")
+                Text(overdue.toString(), color = if (overdue > 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary)
+            }
+            HorizontalDivider()
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Text("مواعيد خلال 7 أيام")
+                Text(dueSoon.toString(), color = MaterialTheme.colorScheme.primary)
+            }
+            HorizontalDivider()
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Text("أحداث مسجلة خلال 30 يوماً")
+                Text(recentEvents.size.toString(), color = MaterialTheme.colorScheme.primary)
+            }
+            if (missingBirthDates > 0) {
+                Text("تنبيه جودة البيانات: $missingBirthDates حيواناً دون تاريخ ميلاد.",
+                    color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+            }
+            Text("تعكس المؤشرات السجلات المدخلة فقط، ولا تمثل تشخيصاً بيطرياً.",
+                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
+}
+
+@Composable
 fun HomeServiceCard(
     title: String,
     subtitle: String,
