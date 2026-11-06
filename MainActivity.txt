@@ -1815,7 +1815,7 @@ fun SmartFarmPanel(
                     if(st==null || (campaignEnd.isNotBlank() && en==null) || (en!=null && en.isBefore(st))) message="تحقق من تاريخ بداية ونهاية الحملة."
                     else {
                         saving=true
-                        onAddVaccineCampaign(VaccineCampaign(campaignName.trim(), campaignRef.trim(), campaignTarget.trim(), eventDate, campaignEnd.trim(), campaignStatus, eventNotes.trim())) { ok ->
+                        onAddVaccineCampaign(VaccineCampaign(name=campaignName.trim(), authorityReference=campaignRef.trim(), targetGroup=campaignTarget.trim(), startDate=eventDate, endDate=campaignEnd.trim(), status=campaignStatus, notes=eventNotes.trim())) { ok ->
                             saving=false
                             message=if(ok) "تم حفظ الحملة ومرجعها." else "تعذر حفظ الحملة."
                             if(ok) {campaignName="";campaignRef="";eventNotes=""}
