@@ -82,7 +82,7 @@ jobs:
           import re
           p = Path("app/src/main/AndroidManifest.xml")
           s = p.read_text()
-          match = re.search(r'<application(?=\\s|>)', s)
+          match = re.search(r'<application(?=\s|>)', s)
           if not match:
               raise SystemExit("Could not locate application element in AndroidManifest.xml")
           tag_end = s.find(">", match.start())
@@ -90,7 +90,7 @@ jobs:
               raise SystemExit("Malformed application element in AndroidManifest.xml")
           tag = s[match.start():tag_end + 1]
           def set_android_attr(tag, name, value):
-              pattern = r'\\sandroid:' + re.escape(name) + r'="[^"]*"'
+              pattern = r'\sandroid:' + re.escape(name) + r'="[^"]*"'
               if re.search(pattern, tag):
                   return re.sub(pattern, ' android:' + name + '="' + value + '"', tag, count=1)
               return tag[:-1] + ' android:' + name + '="' + value + '">'
