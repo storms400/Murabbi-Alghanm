@@ -22,6 +22,7 @@ name: Build Android APK
       - "mqane-vaccination-independent-2026"
       - "mqane-professional-pages-independent-2026"
       - "mqane-exact-independent-copy-2026"
+      - "mqane-auto-calendar-independent-2026"
 
 jobs:
   build:
@@ -97,7 +98,7 @@ jobs:
           p = Path("app/build.gradle.kts")
           s = p.read_text()
           expected = ("dz.murabbi.alghanm.independent2026"
-                      if os.environ.get("GITHUB_REF_NAME") == "mqane-exact-independent-copy-2026"
+                      if os.environ.get("GITHUB_REF_NAME") in ("mqane-exact-independent-copy-2026", "mqane-auto-calendar-independent-2026")
                       else "dz.murabbi.alghanm.professional2026")
 
           s, count = re.subn(
