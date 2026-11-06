@@ -16,6 +16,7 @@ name: Build Android APK
       - "animal-profile-cards"
       - "mqane-inspired-interface"
       - "mqane-comprehensive-independent"
+      - "mqane-vaccination-independent-2026"
 
 jobs:
   build:
@@ -40,6 +41,18 @@ jobs:
         run: |
           cp MainActivity.txt app/src/main/java/dz/murabbi/alghanm/MainActivity.kt
           cp FarmDatabase.txt app/src/main/java/dz/murabbi/alghanm/data/FarmDatabase.kt
+          cp SmartFarmPanel.kt app/src/main/java/dz/murabbi/alghanm/SmartFarmPanel.kt
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("app/src/main/AndroidManifest.xml")
+          s = p.read_text()
+          if "android.permission.POST_NOTIFICATIONS" not in s:
+              s = s.replace("<application", '<uses-permission android:name="android.permission.POST_NOTIFICATIONS" />\n    <application', 1)
+          receiver = '<receiver android:name="dz.murabbi.alghanm.VaccineReminderReceiver" android:enabled="true" android:exported="false" />'
+          if "VaccineReminderReceiver" not in s:
+              s = s.replace("</application>", "        " + receiver + "\n    </application>", 1)
+          p.write_text(s)
+          PY
 
       - name: Add sheep app icon
         run: |
@@ -81,7 +94,7 @@ jobs:
 
           s, count = re.subn(
               r'(?m)^(\s*applicationId\s*=\s*)["\'][^"\']+["\']',
-              r'\1"dz.murabbi.alghanm.comprehensive2026"',
+              r'\1"dz.murabbi.alghanm.vaccination2026"',
               s
           )
 
