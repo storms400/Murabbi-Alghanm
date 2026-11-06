@@ -236,7 +236,6 @@ class FarmViewModel(private val dao: FarmDao) : ViewModel() {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FarmScreen(vm: FarmViewModel) {
-
     val animals by vm.animals.collectAsState()
     val purchases by vm.purchases.collectAsState()
     val consumptions by vm.consumptions.collectAsState()
@@ -247,71 +246,78 @@ fun FarmScreen(vm: FarmViewModel) {
     var selectedAnimal by remember { mutableStateOf<Animal?>(null) }
     var screenMessage by remember { mutableStateOf("") }
 
-    val tabs = listOf("الرئيسية", "القطيع", "المشتريات", "التغذية", "الإدارة")
+    val tabs = listOf(
+        Triple("الرئيسية", "⌂", 0),
+        Triple("القطيع", "🐑", 1),
+        Triple("المشتريات", "🛒", 2),
+        Triple("التغذية", "🌾", 3),
+        Triple("المزيد", "☰", 4)
+    )
 
     Scaffold(
+        containerColor = MaterialTheme.colorScheme.background,
         topBar = {
-            TopAppBar(title = { Text("مربي الغنم 🐑") })
+            TopAppBar(
+                title = {
+                    Column(verticalArrangement = Arrangement.spacedBy(0.dp)) {
+                        Text("مربي الغنم", style = MaterialTheme.typography.titleLarge)
+                        Text(
+                            "إدارة مراحك بسهولة",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.surface
+                )
+            )
         },
         bottomBar = {
-            NavigationBar {
-                tabs.forEachIndexed { index, title ->
+            NavigationBar(
+                containerColor = MaterialTheme.colorScheme.surface,
+                tonalElevation = 4.dp
+            ) {
+                tabs.forEachIndexed { index, item ->
                     NavigationBarItem(
-                        selected = selectedTab == index,
+                        selected = selectedTab == index && selectedAnimal == null,
                         onClick = {
                             selectedTab = index
                             selectedAnimal = null
                             screenMessage = ""
                         },
                         icon = {
-                            Icon(
-                                imageVector = when (index) {
-                                    0 -> androidx.compose.material.icons.Icons.Default.Home
-                                    1 -> androidx.compose.material.icons.Icons.Default.Pets
-                                    2 -> androidx.compose.material.icons.Icons.Default.ShoppingCart
-                                    3 -> androidx.compose.material.icons.Icons.Default.Inventory
-                                    else -> androidx.compose.material.icons.Icons.Default.CalendarMonth
-                                },
-                                contentDescription = title
+                            Text(
+                                item.second,
+                                style = MaterialTheme.typography.titleLarge
                             )
                         },
-                        label = { Text(title) }
+                        label = { Text(item.first, style = MaterialTheme.typography.labelSmall) }
                     )
                 }
             }
         }
     ) { padding ->
-
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .padding(12.dp)
+                .padding(horizontal = 12.dp, vertical = 8.dp)
         ) {
-
             if (selectedAnimal != null) {
                 val animal = selectedAnimal!!
-
                 AnimalDetailsScreen(
                     animal = animal,
                     events = events.filter { it.animalTag == animal.tag },
                     onBack = { selectedAnimal = null },
                     onUpdate = { updated ->
                         vm.updateAnimal(updated) { success ->
-                            screenMessage = if (success)
-                                "تم تحديث البيانات بنجاح."
-                            else
-                                "تعذر تحديث البيانات."
+                            screenMessage = if (success) "تم تحديث البيانات بنجاح." else "تعذر تحديث البيانات."
                         }
                     },
                     onAddEvent = { type, date, notes ->
-                        vm.addAnimalEvent(
-                            animal.tag, type, date, notes
-                        ) { success ->
-                            screenMessage = if (success)
-                                "تم تسجيل الحدث."
-                            else
-                                "تعذر تسجيل الحدث."
+                        vm.addAnimalEvent(animal.tag, type, date, notes) { success ->
+                            screenMessage = if (success) "تم تسجيل الحدث." else "تعذر تسجيل الحدث."
                         }
                     },
                     onArchive = {
@@ -321,17 +327,18 @@ fun FarmScreen(vm: FarmViewModel) {
                         }
                     }
                 )
-
                 if (screenMessage.isNotBlank()) {
-                    Text(screenMessage)
+                    Text(
+                        screenMessage,
+                        modifier = Modifier.padding(8.dp),
+                        color = MaterialTheme.colorScheme.primary
+                    )
                 }
-
             } else {
-
                 when (selectedTab) {
-
                     0 -> HomeScreen(
                         animals, purchases, consumptions, tasks, events,
+                        onNavigate = { selectedTab = it },
                         onAddEvent = { tag, type, date, notes, result ->
                             vm.addAnimalEvent(tag, type, date, notes, result)
                         },
@@ -339,37 +346,27 @@ fun FarmScreen(vm: FarmViewModel) {
                             vm.addTask(type, date, count, notes, result)
                         }
                     )
-
                     1 -> HerdScreen(
                         animals = animals,
                         onOpen = { selectedAnimal = it },
                         onAdd = { tag, sex, category, weight, result ->
-                            vm.addAnimal(
-                                tag, sex, category, weight, result
-                            )
+                            vm.addAnimal(tag, sex, category, weight, result)
                         }
                     )
-
                     2 -> PurchasesScreen(
                         purchases = purchases,
                         onAdd = { name, qty, price, supplier, result ->
-                            vm.addPurchase(
-                                name, qty, price, supplier, result
-                            )
+                            vm.addPurchase(name, qty, price, supplier, result)
                         }
                     )
-
                     3 -> FeedingScreen(
                         purchases = purchases,
                         consumptions = consumptions,
                         animals = animals,
                         onAdd = { name, qty, category, count, notes, result ->
-                            vm.addConsumption(
-                                name, qty, category, count, notes, result
-                            )
+                            vm.addConsumption(name, qty, category, count, notes, result)
                         }
                     )
-
                     else -> SmartFarmPanel(
                         animals = animals,
                         purchases = purchases,
@@ -396,6 +393,7 @@ fun HomeScreen(
     consumptions: List<FeedConsumption>,
     tasks: List<FarmTask>,
     events: List<HerdEvent>,
+    onNavigate: (Int) -> Unit,
     onAddEvent: (String, String, String, String, (Boolean) -> Unit) -> Unit,
     onAddTask: (String, String, Int, String, (Boolean) -> Unit) -> Unit
 ) {
@@ -403,52 +401,98 @@ fun HomeScreen(
     val totalConsumed = consumptions.sumOf { it.quantityKg }
     val stock = (totalPurchased - totalConsumed).coerceAtLeast(0.0)
     val formatter = java.text.DecimalFormat("#,##0.##")
+    val today = LocalDate.now()
+    val upcomingTasks = tasks.filter { task ->
+        val date = runCatching { LocalDate.parse(task.taskDate) }.getOrNull()
+        date != null && !task.completed && !date.isBefore(today)
+    }.sortedBy { it.taskDate }.take(3)
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(bottom = 16.dp, top = 4.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
         item {
             Card(
                 modifier = Modifier.fillMaxWidth(),
+                shape = MaterialTheme.shapes.extraLarge,
                 colors = CardDefaults.cardColors(
                     containerColor = MaterialTheme.colorScheme.primary
-                ),
-                shape = MaterialTheme.shapes.extraLarge
+                )
             ) {
-                Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text("مرحباً بك في مزرعتك", color = androidx.compose.ui.graphics.Color.White,
-                        style = MaterialTheme.typography.titleMedium)
-                    Text("مربي الغنم", color = androidx.compose.ui.graphics.Color.White,
-                        style = MaterialTheme.typography.headlineMedium)
-                    Text("تابع القطيع والأعلاف من مكان واحد",
-                        color = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.88f))
+                Column(
+                    Modifier.fillMaxWidth().padding(20.dp),
+                    verticalArrangement = Arrangement.spacedBy(7.dp)
+                ) {
+                    Text(
+                        "مرحباً بك في مراحك",
+                        color = androidx.compose.ui.graphics.Color.White,
+                        style = MaterialTheme.typography.titleMedium
+                    )
+                    Text(
+                        "كل تفاصيل القطيع في مكان واحد",
+                        color = androidx.compose.ui.graphics.Color.White,
+                        style = MaterialTheme.typography.headlineSmall
+                    )
+                    Text(
+                        "اليوم: ${today}",
+                        color = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.82f),
+                        style = MaterialTheme.typography.bodySmall
+                    )
                 }
             }
         }
         item {
-            Text("ملخص المزرعة", style = MaterialTheme.typography.titleLarge,
-                color = MaterialTheme.colorScheme.primary)
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+            ) {
+                Text("ملخص المراح", style = MaterialTheme.typography.titleLarge,
+                    color = MaterialTheme.colorScheme.primary)
+                Text("تحديث مباشر", style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
         }
         item {
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                DashboardMetric("القطيع النشط", animals.size.toString(), "🐑", Modifier.weight(1f))
+                DashboardMetric("رؤوس نشطة", animals.size.toString(), "🐑", Modifier.weight(1f))
                 DashboardMetric("مخزون العلف", "${formatter.format(stock)} كغ", "🌾", Modifier.weight(1f))
             }
         }
         item {
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                DashboardMetric("المشتريات", purchases.size.toString(), "🛒", Modifier.weight(1f))
-                DashboardMetric("المهام", tasks.size.toString(), "📋", Modifier.weight(1f))
+                DashboardMetric("مشتريات مسجلة", purchases.size.toString(), "🛒", Modifier.weight(1f))
+                DashboardMetric("مواعيد ومهام", tasks.count { !it.completed }.toString(), "📅", Modifier.weight(1f))
+            }
+        }
+        item {
+            Text("الوصول السريع", style = MaterialTheme.typography.titleLarge,
+                color = MaterialTheme.colorScheme.primary)
+        }
+        item {
+            Column(verticalArrangement = Arrangement.spacedBy(9.dp)) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(9.dp)) {
+                    HomeServiceCard("إدارة القطيع", "ملفات وصور وأوزان الحيوانات", "🐑",
+                        Modifier.weight(1f)) { onNavigate(1) }
+                    HomeServiceCard("مشتريات الأعلاف", "الكميات والأسعار والموردون", "🛒",
+                        Modifier.weight(1f)) { onNavigate(2) }
+                }
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(9.dp)) {
+                    HomeServiceCard("التغذية والمخزون", "الاستهلاك ورصيد الأعلاف", "🌾",
+                        Modifier.weight(1f)) { onNavigate(3) }
+                    HomeServiceCard("الصحة والتقارير", "الرعاية والمواعيد والمرشد", "🩺",
+                        Modifier.weight(1f)) { onNavigate(4) }
+                }
             }
         }
         item {
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                shape = MaterialTheme.shapes.large
+                shape = MaterialTheme.shapes.large,
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
             ) {
-                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
                     Text("حركة الأعلاف", style = MaterialTheme.typography.titleMedium)
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                         Text("إجمالي المشتريات")
@@ -461,7 +505,39 @@ fun HomeScreen(
                         Text("${formatter.format(totalConsumed)} كغ",
                             color = MaterialTheme.colorScheme.secondary)
                     }
+                    HorizontalDivider()
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text("الرصيد المتبقي")
+                        Text("${formatter.format(stock)} كغ",
+                            color = MaterialTheme.colorScheme.primary,
+                            style = MaterialTheme.typography.titleMedium)
+                    }
                 }
+            }
+        }
+        item {
+            Text("المواعيد القادمة", style = MaterialTheme.typography.titleLarge,
+                color = MaterialTheme.colorScheme.primary)
+        }
+        if (upcomingTasks.isEmpty()) {
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+                ) {
+                    Text("لا توجد مواعيد قادمة مسجلة حالياً.",
+                        modifier = Modifier.padding(16.dp),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+        } else {
+            items(upcomingTasks, key = { "home-task-${it.id}" }) { task ->
+                ListItem(
+                    headlineContent = { Text(task.taskType) },
+                    supportingContent = { Text("${task.taskDate} • ${task.animalCount} حيوان • ${task.notes}") },
+                    leadingContent = { Text("📌", style = MaterialTheme.typography.titleLarge) },
+                    colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surface)
+                )
             }
         }
         item {
@@ -470,12 +546,40 @@ fun HomeScreen(
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
                 shape = MaterialTheme.shapes.large
             ) {
-                Column(Modifier.padding(16.dp)) {
-                    Text("نصيحة", style = MaterialTheme.typography.titleMedium,
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text("تذكير للمربي", style = MaterialTheme.typography.titleMedium,
                         color = MaterialTheme.colorScheme.primary)
-                    Text("سجّل المشتريات والاستهلاك بانتظام لمتابعة رصيد الأعلاف بدقة.")
+                    Text("حدّث أوزان الحيوانات وسجّل التطعيمات والولادات أولاً بأول لتحصل على متابعة أدق للقطيع.")
                 }
             }
+        }
+    }
+}
+
+@Composable
+fun HomeServiceCard(
+    title: String,
+    subtitle: String,
+    emoji: String,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    Card(
+        onClick = onClick,
+        modifier = modifier,
+        shape = MaterialTheme.shapes.large,
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+    ) {
+        Column(
+            Modifier.fillMaxWidth().heightIn(min = 112.dp).padding(13.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Text(emoji, style = MaterialTheme.typography.headlineMedium)
+            Text(title, style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.primary)
+            Text(subtitle, style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }
