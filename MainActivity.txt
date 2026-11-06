@@ -346,13 +346,13 @@ class FarmViewModel(private val dao: FarmDao) : ViewModel() {
     }
 
     fun addTreatment(record: TreatmentRecord, onResult: (Boolean) -> Unit) {
-        viewModelScope.launch { onResult(runCatching { dao.addTreatment(record); dao.addAuditEntry(AuditEntry("إضافة", "علاج", record.animalTag, record.diagnosis)) }.isSuccess) }
+        viewModelScope.launch { onResult(runCatching { dao.addTreatment(record); dao.addAuditEntry(AuditEntry(action = "إضافة", recordType = "علاج", details = "${record.animalTag}: ${record.diagnosis}")) }.isSuccess) }
     }
     fun addReproduction(record: ReproductionRecord, onResult: (Boolean) -> Unit) {
-        viewModelScope.launch { onResult(runCatching { dao.addReproduction(record); dao.addAuditEntry(AuditEntry("إضافة", "تكاثر", record.femaleTag, record.eventType)) }.isSuccess) }
+        viewModelScope.launch { onResult(runCatching { dao.addReproduction(record); dao.addAuditEntry(AuditEntry(action = "إضافة", recordType = "تكاثر", details = "${record.femaleTag}: ${record.eventType}")) }.isSuccess) }
     }
     fun addMedicineStock(item: MedicineStock, onResult: (Boolean) -> Unit) {
-        viewModelScope.launch { onResult(runCatching { dao.addMedicineStock(item); dao.addAuditEntry(AuditEntry("إضافة", "مخزون دواء", item.medicineName, "كمية: ${item.quantity} • صلاحية: ${item.expiryDate}")) }.isSuccess) }
+        viewModelScope.launch { onResult(runCatching { dao.addMedicineStock(item); dao.addAuditEntry(AuditEntry(action = "إضافة", recordType = "مخزون دواء", details = "${item.medicineName} • كمية: ${item.quantity} • صلاحية: ${item.expiryDate}")) }.isSuccess) }
     }
 
     fun saveCareStatus(status: AnimalCareStatus, onResult: (Boolean) -> Unit) {
