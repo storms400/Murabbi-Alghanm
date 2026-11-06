@@ -344,6 +344,17 @@ class FarmViewModel(private val dao: FarmDao) : ViewModel() {
     fun addVaccineCampaign(campaign: VaccineCampaign, onResult: (Boolean) -> Unit) {
         viewModelScope.launch { onResult(runCatching { dao.addVaccineCampaign(campaign) }.isSuccess) }
     }
+
+    fun addTreatment(record: TreatmentRecord, onResult: (Boolean) -> Unit) {
+        viewModelScope.launch { onResult(runCatching { dao.addTreatment(record); dao.addAuditEntry(AuditEntry("إضافة", "علاج", record.animalTag, record.diagnosis)) }.isSuccess) }
+    }
+    fun addReproduction(record: ReproductionRecord, onResult: (Boolean) -> Unit) {
+        viewModelScope.launch { onResult(runCatching { dao.addReproduction(record); dao.addAuditEntry(AuditEntry("إضافة", "تكاثر", record.femaleTag, record.eventType)) }.isSuccess) }
+    }
+    fun addMedicineStock(item: MedicineStock, onResult: (Boolean) -> Unit) {
+        viewModelScope.launch { onResult(runCatching { dao.addMedicineStock(item); dao.addAuditEntry(AuditEntry("إضافة", "مخزون دواء", item.medicineName, "كمية: ${item.quantity} • صلاحية: ${item.expiryDate}")) }.isSuccess) }
+    }
+
     fun saveCareStatus(status: AnimalCareStatus, onResult: (Boolean) -> Unit) {
         viewModelScope.launch { onResult(runCatching { dao.saveAnimalCareStatus(status) }.isSuccess) }
     }
@@ -1597,7 +1608,9 @@ private fun SmartSectionsHome(onSelect: (String) -> Unit) {
         Triple("الصحة والتناسل", "✚", Color(0xFFD45A58)),
         Triple("الوزن والنمو", "⚖", Color(0xFFB87928)),
         Triple("المواعيد والتنبيهات", "🔔", Color(0xFF7955B5)),
-        Triple("المالية والتقارير", "دج", Color(0xFF168C88))
+        Triple("المالية والتقارير", "دج", Color(0xFF168C88)),
+        Triple("العلاجات ومخزون الأدوية", "💊", Color(0xFFB65B45)),
+        Triple("التكاثر والولادات", "🐑", Color(0xFF8A5DB5))
     )
     Column(
         modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
