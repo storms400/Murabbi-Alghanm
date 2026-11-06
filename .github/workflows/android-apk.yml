@@ -34,6 +34,7 @@ name: Build Android APK
       - "mawashi-pro-v9-independent-20261106"
       - "mawashi-pro-v10-independent-20261106"
       - "mawashi-pro-v11-security-backup-20261106"
+      - "mawashi-pro-v12-independent-20261106"
 
 jobs:
   build:
@@ -128,7 +129,9 @@ jobs:
           p = Path("app/build.gradle.kts")
           s = p.read_text()
           branch = os.environ.get("GITHUB_REF_NAME")
-          expected = ("dz.murabbi.alghanm.mawashi.prov1120261106"
+          expected = ("dz.murabbi.alghanm.mawashi.prov1220261106"
+                      if branch == "mawashi-pro-v12-independent-20261106"
+                      else "dz.murabbi.alghanm.mawashi.prov1120261106"
                       if branch == "mawashi-pro-v11-security-backup-20261106"
                       else "dz.murabbi.alghanm.mawashi.prov1020261106"
                       if branch == "mawashi-pro-v10-independent-20261106"
@@ -240,12 +243,12 @@ jobs:
             exit 1
           fi
           ACTUAL_PACKAGE="$("$AAPT" dump badging "$APK" | sed -n "s/^package: name='\\([^']*\\)'.*/\\1/p" | head -n 1)"
-          EXPECTED_PACKAGE="dz.murabbi.alghanm.mawashi.prov1120261106"
+          EXPECTED_PACKAGE="dz.murabbi.alghanm.mawashi.prov1220261106"
           if [ "$ACTUAL_PACKAGE" != "$EXPECTED_PACKAGE" ]; then
             echo "ERROR: APK package is $ACTUAL_PACKAGE, expected $EXPECTED_PACKAGE"
             exit 1
           fi
-          grep -q '"mawashi_pro_v11_standalone20261106.db"' app/src/main/java/dz/murabbi/alghanm/data/FarmDatabase.kt
+          grep -q '"mawashi_pro_v12_standalone20261106.db"' app/src/main/java/dz/murabbi/alghanm/data/FarmDatabase.kt
           echo "VERIFIED APK PACKAGE: $ACTUAL_PACKAGE"
           echo "VERIFIED DATABASE: mawashi_pro_v11_standalone20261106.db"
           grep -q "PBKDF2WithHmacSHA256" app/src/main/java/dz/murabbi/alghanm/security/PinSecurity.kt
@@ -254,6 +257,8 @@ jobs:
           grep -q "lockRequested" MainActivity.txt
           grep -q "version = 9" FarmDatabase.txt
           grep -q "MIGRATION_8_9" FarmDatabase.txt
+          grep -q "BackupArchivePolicyTest" app/src/test/java/dz/murabbi/alghanm/BackupArchivePolicyTest.kt
+          grep -q "safeEntryName" app/src/main/java/dz/murabbi/alghanm/BackupArchivePolicy.kt
           test -f app/src/main/java/dz/murabbi/alghanm/MawashiBackup.kt
           grep -q "AES/GCM/NoPadding" app/src/main/java/dz/murabbi/alghanm/MawashiBackup.kt
           grep -q "photos/" app/src/main/java/dz/murabbi/alghanm/MawashiBackup.kt
@@ -288,7 +293,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: Mawashi-Pro-V11-Standalone-20261106-APK
+          name: Mawashi-Pro-V12-Standalone-20261106-APK
           path: app/build/outputs/apk/debug/app-debug.apk
 
 # Rebuild the professional sheep-icon test APK
