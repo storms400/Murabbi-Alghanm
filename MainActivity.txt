@@ -97,9 +97,30 @@ class VaccineBootReceiver : BroadcastReceiver() {
         Thread {
             try {
                 kotlinx.coroutines.runBlocking {
-                    FarmDatabase.get(context).farmDao().vaccineRecords().first().forEach { record ->
+                    val dao = FarmDatabase.get(context).farmDao()
+                    val records = dao.vaccineRecords().first()
+                    records.forEach { record ->
                         val due = runCatching { LocalDate.parse(record.nextDueDate) }.getOrNull() ?: return@forEach
+                        scheduleVaccineAlarm(context, record.animalTag, record.vaccineKey + "-next", record.vaccineName, due, due.minusDays(3), "تبقى 3 أيام على الجرعة التالية")
                         scheduleVaccineAlarm(context, record.animalTag, record.vaccineKey + "-next", record.vaccineName, due, due, "موعد الجرعة التالية المسجل")
+                    }
+                    val recordedKeys = records.map { it.animalTag + "|" + it.vaccineKey }.toSet()
+                    val legacyEvents = dao.events().first()
+                    dao.activeAnimals().first().forEach { animal ->
+                        val birth = runCatching { LocalDate.parse(animal.birthDate) }.getOrNull() ?: return@forEach
+                        val plan = listOf(
+                            Triple("clostridial-1", "التسمم المعوي والكزاز — الجرعة الأولى", birth.plusDays(45)),
+                            Triple("clostridial-2", "التسمم المعوي والكزاز — الجرعة الثانية", birth.plusDays(69)),
+                            Triple("ppr", "طاعون المجترات الصغيرة (PPR)", birth.plusDays(105)),
+                            Triple("pox-risk", "جدري الأغنام (عند وجود خطر)", birth.plusDays(120))
+                        )
+                        plan.forEach { item ->
+                            val legacyDone = legacyEvents.any { it.animalTag == animal.tag && it.eventType == "تطعيم" && it.notes.contains("VAX:" + item.first) }
+                            if ((animal.tag + "|" + item.first) !in recordedKeys && !legacyDone) {
+                                scheduleVaccineAlarm(context, animal.tag, item.first, item.second, item.third, item.third.minusDays(3), "تبقى 3 أيام — موعد استرشادي")
+                                scheduleVaccineAlarm(context, animal.tag, item.first, item.second, item.third, item.third, "موعد مراجعة التطعيم اليوم الساعة 08:00")
+                            }
+                        }
                     }
                 }
             } finally { pending.finish() }
@@ -1743,10 +1764,10 @@ fun SmartFarmPanel(
                     val recorded = vaccineRecorded(item)
                     val review = careByTag[item.animalTag]?.status?.let { it != "طبيعي" } ?: false
                     val days = ChronoUnit.DAYS.between(today, item.dueDate)
-                    val status = when { recorded -> "مكتمل"; review -> "مراجعة بيطرية"; days < 0 -> "متأخر"; days <= 7 -> if (days == 0L) "مستحق" else "قريب"; else -> "مجدول" }
+                    val status = when { recorded -> "تم تسجيل جرعة"; review -> "مراجعة بيطرية"; days < 0 -> "متأخر"; days <= 7 -> if (days == 0L) "مستحق" else "قريب"; else -> "مجدول" }
                     Triple(item, status, days)
                 }
-                listOf("قريب", "مستحق", "متأخر", "مراجعة بيطرية", "مكتمل").forEach { label ->
+                listOf("قريب", "مستحق", "متأخر", "مراجعة بيطرية", "تم تسجيل جرعة").forEach { label ->
                     AssistChip(onClick = {}, label = { Text("$label: ${dueItems.count { it.second == label }}") })
                 }
                 dueItems.sortedBy { it.first.dueDate }.forEach { (item, status, days) ->
@@ -1759,7 +1780,7 @@ fun SmartFarmPanel(
                                 Text("جرعة: ${r.administeredDate} • المنتج: ${r.productName} • الدفعة: ${r.batchNumber} • المقدار: ${r.doseText}")
                                 if (r.nextDueDate.isNotBlank()) Text("الجرعة التالية: ${r.nextDueDate}")
                             }
-                            if (status != "مكتمل") {
+                            if (true) {
                                 CalendarDateField(label = "تاريخ إعطاء الجرعة", value = vaccineAdminDate, onDateSelected = { vaccineAdminDate = it })
                                 OutlinedTextField(vaccineProduct, { vaccineProduct = it }, label = { Text("اسم اللقاح / المنتج") }, modifier = Modifier.fillMaxWidth())
                                 OutlinedTextField(vaccineDose, { vaccineDose = it }, label = { Text("الجرعة والكمية حسب النشرة") }, modifier = Modifier.fillMaxWidth())
@@ -1778,7 +1799,7 @@ fun SmartFarmPanel(
                                             if (ok) { vaccineAdminDate=today.toString(); vaccineProduct=""; vaccineDose=""; vaccineBatch=""; vaccineNextDue=""; vaccineVet=""; vaccineNotes="" }
                                         }
                                     }
-                                }, modifier = Modifier.fillMaxWidth()) { Text("تأكيد إعطاء اللقاح وحفظ الجرعة") }
+                                }, modifier = Modifier.fillMaxWidth()) { Text(if (status == "تم تسجيل جرعة") "تسجيل جرعة إضافية / تنشيطية" else "تأكيد إعطاء اللقاح وحفظ الجرعة") }
                             }
                         }
                     }
