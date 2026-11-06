@@ -98,7 +98,7 @@ jobs:
           p = Path("app/build.gradle.kts")
           s = p.read_text()
           branch = os.environ.get("GITHUB_REF_NAME")
-          expected = ("dz.murabbi.alghanm.calendar2026"
+          expected = ("dz.murabbi.alghanm.calendarstandalone20261106"
                       if branch == "mqane-auto-calendar-independent-2026"
                       else "dz.murabbi.alghanm.independent2026"
                       if branch == "mqane-exact-independent-copy-2026"
@@ -127,7 +127,7 @@ jobs:
           s = Path("app/build.gradle.kts").read_text()
           m = re.search(r'applicationId\s*=\s*"([^"]+)"', s)
           branch = os.environ.get("GITHUB_REF_NAME")
-          expected = ("dz.murabbi.alghanm.calendar2026"
+          expected = ("dz.murabbi.alghanm.calendarstandalone20261106"
                       if branch == "mqane-auto-calendar-independent-2026"
                       else "dz.murabbi.alghanm.independent2026"
                       if branch == "mqane-exact-independent-copy-2026"
@@ -150,18 +150,18 @@ jobs:
             exit 1
           fi
           ACTUAL_PACKAGE="$("$AAPT" dump badging "$APK" | sed -n "s/^package: name='\\([^']*\\)'.*/\\1/p" | head -n 1)"
-          EXPECTED_PACKAGE="dz.murabbi.alghanm.calendar2026"
+          EXPECTED_PACKAGE="dz.murabbi.alghanm.calendarstandalone20261106"
           if [ "$ACTUAL_PACKAGE" != "$EXPECTED_PACKAGE" ]; then
             echo "ERROR: APK package is $ACTUAL_PACKAGE, expected $EXPECTED_PACKAGE"
             exit 1
           fi
-          grep -q '"murabbi_calendar_independent2026.db"' app/src/main/java/dz/murabbi/alghanm/data/FarmDatabase.kt
+          grep -q '"murabbi_calendar_standalone20261106.db"' app/src/main/java/dz/murabbi/alghanm/data/FarmDatabase.kt
           echo "VERIFIED APK PACKAGE: $ACTUAL_PACKAGE"
-          echo "VERIFIED DATABASE: murabbi_calendar_independent2026.db"
+          echo "VERIFIED DATABASE: murabbi_calendar_standalone20261106.db"
 
       - uses: actions/upload-artifact@v4
         with:
-          name: Mqane-Calendar-Standalone-APK
+          name: Mqane-Calendar-Standalone-20261106-APK
           path: app/build/outputs/apk/debug/app-debug.apk
 
 # Rebuild the professional sheep-icon test APK
