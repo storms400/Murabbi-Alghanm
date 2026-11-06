@@ -131,122 +131,200 @@ class VaccineBootReceiver : BroadcastReceiver() {
 }
 
 class MainActivity : ComponentActivity() {
+    private var lockRequested by mutableStateOf(false)
+    override fun onStop() { super.onStop(); lockRequested = true }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        if (Build.VERSION.SDK_INT >= 33 &&
-            checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+        if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED)
             requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 2026)
-        }
-
         val db = FarmDatabase.get(this)
-
         setContent {
-            val vm = remember {
-                FarmViewModel(db.farmDao())
-            }
-
-            MaterialTheme(
-                colorScheme = lightColorScheme(
-                    primary = androidx.compose.ui.graphics.Color(0xFF187A45),
-                    onPrimary = androidx.compose.ui.graphics.Color.White,
-                    secondary = androidx.compose.ui.graphics.Color(0xFF77A95B),
-                    background = androidx.compose.ui.graphics.Color(0xFFF4F8F2),
-                    surface = androidx.compose.ui.graphics.Color.White
-                )
-            ) {
-                CompositionLocalProvider(
-                    LocalLayoutDirection provides LayoutDirection.Rtl
-                ) {
-                    SecureFarmEntry(vm, db.farmDao())
+            val vm = remember { FarmViewModel(db.farmDao()) }
+            MaterialTheme(colorScheme = lightColorScheme(
+                primary = Color(0xFF187A45), onPrimary = Color.White,
+                secondary = Color(0xFF77A95B), background = Color(0xFFF4F8F2), surface = Color.White
+            )) {
+                CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
+                    SecureFarmEntry(vm, db.farmDao(), lockRequested) { lockRequested = false }
                 }
             }
         }
     }
 }
 
-
 private fun createPinHash(pin: String): String {
     val salt = ByteArray(16).also { java.security.SecureRandom().nextBytes(it) }
-    val spec = javax.crypto.spec.PBEKeySpec(pin.toCharArray(), salt, 120000, 256)
+    val spec = javax.crypto.spec.PBEKeySpec(pin.toCharArray(), salt, 210000, 256)
     val hash = javax.crypto.SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256").generateSecret(spec).encoded
     spec.clearPassword()
-    return "v1:" + android.util.Base64.encodeToString(salt, android.util.Base64.NO_WRAP) + ":" +
+    return "v2:" + android.util.Base64.encodeToString(salt, android.util.Base64.NO_WRAP) + ":" +
         android.util.Base64.encodeToString(hash, android.util.Base64.NO_WRAP)
 }
 
 private fun verifyPin(pin: String, stored: String): Boolean = runCatching {
     val parts = stored.split(":")
-    if (parts.size != 3 || parts[0] != "v1") return false
+    if (parts.size != 3 || parts[0] !in listOf("v1", "v2")) return false
+    val iterations = if (parts[0] == "v1") 120000 else 210000
     val salt = android.util.Base64.decode(parts[1], android.util.Base64.NO_WRAP)
     val expected = android.util.Base64.decode(parts[2], android.util.Base64.NO_WRAP)
-    val spec = javax.crypto.spec.PBEKeySpec(pin.toCharArray(), salt, 120000, 256)
+    val spec = javax.crypto.spec.PBEKeySpec(pin.toCharArray(), salt, iterations, 256)
     val actual = javax.crypto.SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256").generateSecret(spec).encoded
     spec.clearPassword()
     java.security.MessageDigest.isEqual(expected, actual)
 }.getOrDefault(false)
 
+private fun newRecoveryCode(): String =
+    ByteArray(12).also { java.security.SecureRandom().nextBytes(it) }.joinToString("") { "%02X".format(it) }
+
 @Composable
-private fun SecureFarmEntry(vm: FarmViewModel, dao: FarmDao) {
+private fun SecureFarmEntry(vm: FarmViewModel, dao: FarmDao, lockRequested: Boolean, onLockHandled: () -> Unit) {
     var owner by remember { mutableStateOf<AppUser?>(null) }
     var loaded by remember { mutableStateOf(false) }
     var unlocked by remember { mutableStateOf(false) }
     var pin by remember { mutableStateOf("") }
     var confirmation by remember { mutableStateOf("") }
+    var recoveryCode by remember { mutableStateOf("") }
+    var recoveryMode by remember { mutableStateOf(false) }
+    var replacementPin by remember { mutableStateOf("") }
+    var replacementConfirm by remember { mutableStateOf("") }
     var message by remember { mutableStateOf("") }
+    var oneTimeRecovery by remember { mutableStateOf("") }
+    var saving by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+    val prefs = remember { context.getSharedPreferences("mawashi_security_v11", Context.MODE_PRIVATE) }
+
     LaunchedEffect(Unit) { owner = dao.activeOwner(); loaded = true }
-    if (!loaded) {
-        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
-    } else if (unlocked) {
-        FarmScreen(vm)
-    } else {
-        Column(Modifier.fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.Center,
-            horizontalAlignment = Alignment.CenterHorizontally) {
-            Text("مواشي", style = MaterialTheme.typography.headlineLarge, color = MaterialTheme.colorScheme.primary)
-            Text(if (owner == null) "إنشاء رمز حماية للتطبيق" else "أدخل رمز الحماية",
-                style = MaterialTheme.typography.titleMedium)
-            Spacer(Modifier.height(16.dp))
-            OutlinedTextField(value=pin, onValueChange={ if (it.length<=8 && it.all(Char::isDigit)) pin=it },
-                label={Text("رمز PIN من 4 إلى 8 أرقام")}, singleLine=true,
-                visualTransformation=androidx.compose.ui.text.input.PasswordVisualTransformation(),
-                keyboardOptions=androidx.compose.foundation.text.KeyboardOptions(
-                    keyboardType=androidx.compose.ui.text.input.KeyboardType.NumberPassword),
-                modifier=Modifier.fillMaxWidth())
-            if (owner == null) {
-                OutlinedTextField(value=confirmation, onValueChange={ if (it.length<=8 && it.all(Char::isDigit)) confirmation=it },
-                    label={Text("تأكيد الرمز")}, singleLine=true,
-                    visualTransformation=androidx.compose.ui.text.input.PasswordVisualTransformation(),
-                    keyboardOptions=androidx.compose.foundation.text.KeyboardOptions(
-                        keyboardType=androidx.compose.ui.text.input.KeyboardType.NumberPassword),
-                    modifier=Modifier.fillMaxWidth())
-            }
-            if (message.isNotBlank()) Text(message, color=MaterialTheme.colorScheme.error)
-            Button(modifier=Modifier.fillMaxWidth(), onClick={
-                if (pin.length !in 4..8) message="يجب أن يتكون الرمز من 4 إلى 8 أرقام."
-                else if (owner == null) {
-                    if (pin != confirmation) message="الرمزان غير متطابقين."
-                    else {
-                        val hash=createPinHash(pin)
-                        scope.launch {
-                            runCatching {
-                                dao.saveAppUser(AppUser(username="owner", role="admin", pinHash=hash))
-                                dao.addAuditEntry(AuditEntry(action="تهيئة", recordType="الأمان",
-                                    details="تم تفعيل رمز حماية محلي"))
-                            }.onSuccess {
-                                owner=dao.activeOwner(); unlocked=true; pin=""; confirmation=""; message=""
-                            }.onFailure { message="تعذر حفظ رمز الحماية." }
-                        }
-                    }
-                } else if (verifyPin(pin, owner!!.pinHash)) {
-                    unlocked=true; pin=""; message=""
-                } else {
-                    pin=""; message="رمز الحماية غير صحيح."
-                }
-            }) { Text(if (owner == null) "تفعيل الحماية وفتح التطبيق" else "فتح التطبيق") }
-            Text("يُخزَّن الرمز بصيغة مشتقة مع ملح عشوائي، ولا يُحفظ الرمز نفسه.",
-                style=MaterialTheme.typography.bodySmall)
+    LaunchedEffect(lockRequested) {
+        if (lockRequested) {
+            unlocked = false; pin = ""; confirmation = ""; recoveryCode = ""; recoveryMode = false
+            onLockHandled()
         }
     }
+
+    if (!loaded) Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
+    else if (unlocked) FarmScreen(vm) { unlocked = false; pin = ""; message = "تم قفل التطبيق." }
+    else Column(Modifier.fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally) {
+        Text("مواشي", style = MaterialTheme.typography.headlineLarge, color = MaterialTheme.colorScheme.primary)
+        Text(if (owner == null) "إنشاء رمز حماية" else if (recoveryMode) "استعادة الوصول" else "أدخل رمز الحماية",
+            style = MaterialTheme.typography.titleMedium)
+        Spacer(Modifier.height(16.dp))
+        if (owner != null && recoveryMode) {
+            OutlinedTextField(value=recoveryCode, onValueChange={ recoveryCode=it.filter(Char::isLetterOrDigit).take(24) },
+                label={Text("رمز الاسترداد")}, singleLine=true, modifier=Modifier.fillMaxWidth())
+            OutlinedTextField(value=replacementPin, onValueChange={ if(it.length<=8 && it.all(Char::isDigit)) replacementPin=it },
+                label={Text("رمز PIN الجديد (4–8 أرقام)")}, singleLine=true,
+                visualTransformation=androidx.compose.ui.text.input.PasswordVisualTransformation(),
+                keyboardOptions=androidx.compose.foundation.text.KeyboardOptions(keyboardType=androidx.compose.ui.text.input.KeyboardType.NumberPassword),
+                modifier=Modifier.fillMaxWidth())
+            OutlinedTextField(value=replacementConfirm, onValueChange={ if(it.length<=8 && it.all(Char::isDigit)) replacementConfirm=it },
+                label={Text("تأكيد الرمز الجديد")}, singleLine=true,
+                visualTransformation=androidx.compose.ui.text.input.PasswordVisualTransformation(),
+                keyboardOptions=androidx.compose.foundation.text.KeyboardOptions(keyboardType=androidx.compose.ui.text.input.KeyboardType.NumberPassword),
+                modifier=Modifier.fillMaxWidth())
+            Button(enabled=!saving, modifier=Modifier.fillMaxWidth(), onClick={
+                val current = owner
+                if (current == null || current.recoveryHash.isBlank()) message = "لا يوجد رمز استرداد مهيأ. افتح التطبيق بالرمز الحالي أولاً."
+                else if (!verifyPin(recoveryCode.uppercase(Locale.ROOT), current.recoveryHash)) message = "رمز الاسترداد غير صحيح."
+                else if (replacementPin.length !in 4..8 || replacementPin != replacementConfirm) message = "تحقق من الرمز الجديد وتأكيده."
+                else {
+                    saving=true
+                    val fresh=newRecoveryCode()
+                    scope.launch {
+                        runCatching {
+                            dao.saveAppUser(current.copy(pinHash=createPinHash(replacementPin), recoveryHash=createPinHash(fresh)))
+                            dao.addAuditEntry(AuditEntry(action="استرداد",recordType="الأمان",details="إعادة تعيين PIN باستخدام رمز الاسترداد"))
+                        }.onSuccess {
+                            owner=dao.activeOwner(); oneTimeRecovery=fresh; recoveryMode=false
+                            recoveryCode=""; replacementPin=""; replacementConfirm=""
+                            message="تم تغيير PIN. احفظ رمز الاسترداد الجديد."
+                        }.onFailure { message="تعذر تحديث بيانات الحماية." }
+                        saving=false
+                    }
+                }
+            }) { Text("إعادة تعيين PIN") }
+            TextButton(onClick={ recoveryMode=false; recoveryCode=""; message="" }) { Text("العودة لتسجيل الدخول") }
+        } else {
+            OutlinedTextField(value=pin, onValueChange={ if(it.length<=8 && it.all(Char::isDigit)) pin=it },
+                label={Text("رمز PIN من 4 إلى 8 أرقام")}, singleLine=true,
+                visualTransformation=androidx.compose.ui.text.input.PasswordVisualTransformation(),
+                keyboardOptions=androidx.compose.foundation.text.KeyboardOptions(keyboardType=androidx.compose.ui.text.input.KeyboardType.NumberPassword),
+                modifier=Modifier.fillMaxWidth())
+            if (owner == null) OutlinedTextField(value=confirmation, onValueChange={ if(it.length<=8 && it.all(Char::isDigit)) confirmation=it },
+                label={Text("تأكيد الرمز")}, singleLine=true,
+                visualTransformation=androidx.compose.ui.text.input.PasswordVisualTransformation(),
+                keyboardOptions=androidx.compose.foundation.text.KeyboardOptions(keyboardType=androidx.compose.ui.text.input.KeyboardType.NumberPassword),
+                modifier=Modifier.fillMaxWidth())
+            Button(enabled=!saving, modifier=Modifier.fillMaxWidth(), onClick={
+                if(pin.length !in 4..8) message="يجب أن يتكون الرمز من 4 إلى 8 أرقام."
+                else if(owner==null) {
+                    if(pin!=confirmation) message="الرمزان غير متطابقين."
+                    else {
+                        saving=true
+                        val fresh=newRecoveryCode()
+                        scope.launch {
+                            runCatching {
+                                dao.saveAppUser(AppUser(username="owner",role="admin",pinHash=createPinHash(pin),recoveryHash=createPinHash(fresh)))
+                                dao.addAuditEntry(AuditEntry(action="تهيئة",recordType="الأمان",details="تم تفعيل PIN ورمز الاسترداد"))
+                            }.onSuccess { owner=dao.activeOwner(); unlocked=true; oneTimeRecovery=fresh; pin=""; confirmation="" }
+                                .onFailure { message="تعذر حفظ رمز الحماية." }
+                            saving=false
+                        }
+                    }
+                } else {
+                    val now=System.currentTimeMillis()
+                    val blockedUntil=prefs.getLong("blocked_until",0L)
+                    if(now<blockedUntil) message="الحماية مفعلة مؤقتاً. أعد المحاولة بعد ${(blockedUntil-now+999)/1000} ثانية."
+                    else if(verifyPin(pin,owner!!.pinHash)) {
+                        prefs.edit().putInt("failed_attempts",0).putLong("blocked_until",0L).apply()
+                        pin=""; message=""
+                        if(owner!!.recoveryHash.isBlank()) {
+                            saving=true
+                            val fresh=newRecoveryCode()
+                            scope.launch {
+                                runCatching {
+                                    dao.saveAppUser(owner!!.copy(recoveryHash=createPinHash(fresh)))
+                                    dao.addAuditEntry(AuditEntry(action="تهيئة الاسترداد",recordType="الأمان",details="إنشاء رمز استرداد بعد ترقية V11"))
+                                }.onSuccess { owner=dao.activeOwner(); oneTimeRecovery=fresh; unlocked=true }
+                                    .onFailure { message="تعذر إنشاء رمز الاسترداد؛ أعد المحاولة." }
+                                saving=false
+                            }
+                        } else unlocked=true
+                    } else {
+                        pin=""
+                        val attempts=prefs.getInt("failed_attempts",0)+1
+                        if(attempts>=5) {
+                            prefs.edit().putInt("failed_attempts",0).putLong("blocked_until",now+60_000L).apply()
+                            message="تم إيقاف المحاولات لمدة دقيقة بعد خمس محاولات خاطئة."
+                        } else {
+                            prefs.edit().putInt("failed_attempts",attempts).apply()
+                            message="رمز الحماية غير صحيح. المحاولات المتبقية: ${5-attempts}"
+                        }
+                    }
+                }
+            }) { Text(if(owner==null) "تفعيل الحماية وفتح التطبيق" else "فتح التطبيق") }
+            if(owner!=null) TextButton(onClick={ recoveryMode=true; message="" }) { Text("نسيت رمز PIN؟ استعادة") }
+        }
+        if(message.isNotBlank()) Text(message,color=MaterialTheme.colorScheme.error)
+        Text("قفل تلقائي عند مغادرة التطبيق، مع تقييد المحاولات.",style=MaterialTheme.typography.bodySmall)
+    }
+
+    if(oneTimeRecovery.isNotBlank()) AlertDialog(
+        onDismissRequest={oneTimeRecovery=""},
+        title={Text("رمز الاسترداد — يظهر مرة واحدة")},
+        text={Column {
+            Text("احتفظ بهذا الرمز خارج الهاتف. لا يمكن استعادته إذا فقدته.")
+            Spacer(Modifier.height(8.dp))
+            Text(oneTimeRecovery,style=MaterialTheme.typography.titleLarge)
+            TextButton(onClick={
+                val clipboard=context.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                clipboard.setPrimaryClip(android.content.ClipData.newPlainText("Mawashi recovery code",oneTimeRecovery))
+            }) { Text("نسخ الرمز") }
+        }},
+        confirmButton={TextButton(onClick={oneTimeRecovery=""}) { Text("حفظته") }}
+    )
 }
 
 class FarmViewModel(private val dao: FarmDao) : ViewModel() {
@@ -471,7 +549,7 @@ class FarmViewModel(private val dao: FarmDao) : ViewModel() {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun FarmScreen(vm: FarmViewModel) {
+fun FarmScreen(vm: FarmViewModel, onLock: () -> Unit = {}) {
     val animals by vm.animals.collectAsState()
     val purchases by vm.purchases.collectAsState()
     val consumptions by vm.consumptions.collectAsState()
@@ -502,21 +580,10 @@ fun FarmScreen(vm: FarmViewModel) {
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
-            TopAppBar(
-                title = {
-                    Column(verticalArrangement = Arrangement.spacedBy(0.dp)) {
-                        Text(
-                            if (selectedAnimal != null) "بطاقة الحيوان"
-                            else selectedSmartSection ?: tabs[selectedTab].first,
-                            style = MaterialTheme.typography.titleLarge
-                        )
-                        Text(
-                            "مواشي • إدارة القطيع بذكاء",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                },
+            TopAppBar(title = { Text("مواشي") }, actions = {
+                TextButton(onClick = onLock) { Text("قفل") }
+            })
+        },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.surface
                 )
