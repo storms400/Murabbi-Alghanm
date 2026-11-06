@@ -119,18 +119,20 @@ object MawashiBackup {
                 }
 
                 var databaseSeen = false
+                val seenEntries = mutableSetOf<String>()
                 var totalUncompressed = 0L
                 ZipInputStream(plainZip.inputStream().buffered()).use { zip ->
                     while (true) {
                         val entry = zip.nextEntry ?: break
                         require(isSafeEntryName(entry.name)) { "ملف النسخة يحتوي مساراً غير آمن." }
+                        require(seenEntries.add(entry.name)) { "النسخة تحتوي عنصراً مكرراً: ${entry.name}" }
                         val output = when {
                             entry.name == "farm.db" -> {
                                 require(!databaseSeen) { "النسخة تحتوي قاعدة بيانات مكررة." }
                                 databaseSeen = true
                                 stagedDb
                             }
-                            entry.name.startsWith("photos/") && isSupportedPhotoEntry(entry.name) -> {
+                            BackupArchivePolicy.safePhotoEntry(entry.name) -> {
                                 val target = File(photoDir, entry.name.removePrefix("photos/"))
                                 require(target.parentFile == photoDir) { "مسار صورة غير آمن." }
                                 target
@@ -155,6 +157,7 @@ object MawashiBackup {
                 FarmDatabase.closeInstance()
                 currentDb.parentFile?.mkdirs()
                 if (currentDb.exists()) currentDb.copyTo(rollbackDb, overwrite = true)
+                require(!currentDb.exists() || rollbackDb.isFile) { "تعذر إنشاء نسخة التراجع؛ أُلغيت الاستعادة لحماية البيانات الحالية." }
                 File(currentDb.absolutePath + "-wal").delete()
                 File(currentDb.absolutePath + "-shm").delete()
                 try {
