@@ -791,6 +791,7 @@ fun HerdScreen(
     var weight by remember { mutableStateOf("") }
     var error by remember { mutableStateOf("") }
     var saving by remember { mutableStateOf(false) }
+    var vaccineAdminDate by remember { mutableStateOf(today.toString()) }
     var vaccineProduct by remember { mutableStateOf("") }
     var vaccineDose by remember { mutableStateOf("") }
     var vaccineBatch by remember { mutableStateOf("") }
@@ -1723,6 +1724,17 @@ fun SmartFarmPanel(
             vaccineRecords.any { it.animalTag == item.animalTag && it.vaccineKey == item.key } ||
                 events.any { it.animalTag == item.animalTag && it.eventType == "تطعيم" && it.notes.contains("VAX:" + item.key) }
         val careByTag = careStatuses.associateBy { it.animalTag }
+        LaunchedEffect(vaccinePlan, events, vaccineRecords) {
+            vaccinePlan.filterNot { vaccineRecorded(it) }.forEach { item ->
+                scheduleVaccineAlarm(context, item.animalTag, item.key, item.title, item.dueDate, item.dueDate.minusDays(3), "تبقى 3 أيام — موعد استرشادي")
+                scheduleVaccineAlarm(context, item.animalTag, item.key, item.title, item.dueDate, item.dueDate, "موعد مراجعة التطعيم اليوم الساعة 08:00")
+            }
+            vaccineRecords.filter { it.nextDueDate.isNotBlank() }.forEach { record ->
+                val next = runCatching { LocalDate.parse(record.nextDueDate) }.getOrNull() ?: return@forEach
+                scheduleVaccineAlarm(context, record.animalTag, record.vaccineKey + "-next", record.vaccineName, next, next.minusDays(3), "تبقى 3 أيام على الجرعة التالية")
+                scheduleVaccineAlarm(context, record.animalTag, record.vaccineKey + "-next", record.vaccineName, next, next, "موعد الجرعة التالية المسجل")
+            }
+        }
         when (section) {
             "برنامج التطعيمات" -> {
                 Text("سجل التطعيمات المنظم لكل حيوان", style = MaterialTheme.typography.titleMedium)
@@ -1748,6 +1760,7 @@ fun SmartFarmPanel(
                                 if (r.nextDueDate.isNotBlank()) Text("الجرعة التالية: ${r.nextDueDate}")
                             }
                             if (status != "مكتمل") {
+                                CalendarDateField(label = "تاريخ إعطاء الجرعة", value = vaccineAdminDate, onDateSelected = { vaccineAdminDate = it })
                                 OutlinedTextField(vaccineProduct, { vaccineProduct = it }, label = { Text("اسم اللقاح / المنتج") }, modifier = Modifier.fillMaxWidth())
                                 OutlinedTextField(vaccineDose, { vaccineDose = it }, label = { Text("الجرعة والكمية حسب النشرة") }, modifier = Modifier.fillMaxWidth())
                                 OutlinedTextField(vaccineBatch, { vaccineBatch = it }, label = { Text("رقم الدفعة Lot") }, modifier = Modifier.fillMaxWidth())
@@ -1756,13 +1769,13 @@ fun SmartFarmPanel(
                                 OutlinedTextField(vaccineNotes, { vaccineNotes = it }, label = { Text("ملاحظات") }, modifier = Modifier.fillMaxWidth())
                                 Button(enabled = !saving && vaccineProduct.isNotBlank() && vaccineDose.isNotBlank() && vaccineBatch.isNotBlank(), onClick = {
                                     val next = vaccineNextDue.trim()
-                                    if (next.isNotEmpty() && runCatching { LocalDate.parse(next) }.isFailure) message = "تاريخ الجرعة التالية غير صحيح."
+                                    if (runCatching { LocalDate.parse(vaccineAdminDate) }.isFailure || (next.isNotEmpty() && runCatching { LocalDate.parse(next) }.isFailure)) message = "تحقق من تاريخ إعطاء الجرعة والجرعة التالية."
                                     else {
                                         saving = true
-                                        onAddVaccineRecord(VaccineDoseRecord(animalTag=item.animalTag, vaccineKey=item.key, vaccineName=item.title, productName=vaccineProduct.trim(), administeredDate=today.toString(), doseText=vaccineDose.trim(), batchNumber=vaccineBatch.trim(), nextDueDate=next, veterinarian=vaccineVet.trim(), notes=vaccineNotes.trim())) { ok ->
+                                        onAddVaccineRecord(VaccineDoseRecord(animalTag=item.animalTag, vaccineKey=item.key, vaccineName=item.title, productName=vaccineProduct.trim(), administeredDate=vaccineAdminDate, doseText=vaccineDose.trim(), batchNumber=vaccineBatch.trim(), nextDueDate=next, veterinarian=vaccineVet.trim(), notes=vaccineNotes.trim())) { ok ->
                                             saving = false
                                             message = if (ok) "تم حفظ الجرعة في السجل." else "تعذر حفظ الجرعة."
-                                            if (ok) { vaccineProduct=""; vaccineDose=""; vaccineBatch=""; vaccineNextDue=""; vaccineVet=""; vaccineNotes="" }
+                                            if (ok) { vaccineAdminDate=today.toString(); vaccineProduct=""; vaccineDose=""; vaccineBatch=""; vaccineNextDue=""; vaccineVet=""; vaccineNotes="" }
                                         }
                                     }
                                 }, modifier = Modifier.fillMaxWidth()) { Text("تأكيد إعطاء اللقاح وحفظ الجرعة") }
