@@ -110,6 +110,7 @@ data class ReproductionRecord(
 data class MedicineStock(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val medicineName: String, val batchNumber: String = "", val quantity: Double,
+    @ColumnInfo(defaultValue = "1.0") val minimumQuantity: Double = 1.0,
     val unit: String = "جرعة", val expiryDate: String, val purchaseDate: String = "",
     val supplier: String = "", val notes: String = ""
 )
@@ -257,10 +258,20 @@ abstract class FarmDao {
     @Insert abstract suspend fun addMedicineStock(item: MedicineStock)
     @Update abstract suspend fun updateMedicineStock(item: MedicineStock)
     @Query("DELETE FROM medicine_stock WHERE id = :id") abstract suspend fun deleteMedicineStock(id: Long)
+    @Query("SELECT COUNT(*) FROM treatment_records WHERE medicineBatchId = :id") abstract suspend fun treatmentReferencesBatch(id: Long): Int
+    @Query("SELECT COUNT(*) FROM medicine_stock WHERE id = :id") abstract suspend fun medicineBatchExists(id: Long): Int
+    @Transaction open suspend fun deleteMedicineStockSafely(id: Long): Boolean {
+        if (treatmentReferencesBatch(id) > 0) return false
+        deleteMedicineStock(id)
+        addAuditEntry(AuditEntry(action = "حذف", recordType = "مخزون دواء", recordId = id.toString()))
+        return true
+    }
     @Query("SELECT * FROM medicine_stock ORDER BY expiryDate ASC, id DESC") abstract fun medicineStock(): Flow<List<MedicineStock>>
     @Query("SELECT * FROM medicine_stock WHERE medicineName = :name AND quantity >= :amount AND expiryDate >= :today ORDER BY expiryDate ASC, id ASC") abstract suspend fun availableMedicineBatches(name: String, amount: Double, today: String): List<MedicineStock>
     @Query("UPDATE medicine_stock SET quantity = quantity - :amount WHERE id = :id AND quantity >= :amount AND expiryDate >= :today") abstract suspend fun deductMedicineStock(id: Long, amount: Double, today: String): Int
     @Transaction open suspend fun saveTreatmentWithStock(record: TreatmentRecord): Boolean {
+        if (record.quantityUsed < 0.0 || record.quantityUsed.isNaN() || record.quantityUsed.isInfinite()) return false
+        if (record.quantityUsed > 0.0 && record.medicineName.isBlank()) return false
         val saved = if (record.quantityUsed > 0.0) {
             val today = java.time.LocalDate.now().toString()
             val batch = availableMedicineBatches(record.medicineName, record.quantityUsed, today).firstOrNull() ?: return false
@@ -275,6 +286,7 @@ abstract class FarmDao {
     @Transaction open suspend fun deleteTreatmentAndRestoreStock(id: Long): Boolean {
         val record = treatmentById(id) ?: return false
         if (record.medicineBatchId > 0 && record.quantityUsed > 0.0) {
+            if (medicineBatchExists(record.medicineBatchId) != 1) return false
             restoreMedicineStock(record.medicineBatchId, record.quantityUsed)
         }
         deleteTreatment(id)
@@ -316,7 +328,7 @@ abstract class FarmDao {
         TreatmentRecord::class, ReproductionRecord::class, MedicineStock::class,
         AuditEntry::class, AppUser::class, FinanceEntry::class
     ],
-    version = 7,
+    version = 8,
     exportSchema = true
 )
 abstract class FarmDatabase : RoomDatabase() {
@@ -384,14 +396,20 @@ abstract class FarmDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_7_8 = object : Migration(7, 8) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE medicine_stock ADD COLUMN minimumQuantity REAL NOT NULL DEFAULT 1.0")
+            }
+        }
+
         fun get(context: Context): FarmDatabase =
             INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(
                     context.applicationContext,
                     FarmDatabase::class.java,
-                    "mawashi_pro_v6_standalone20261106.db"
+                    "mawashi_pro_v7_standalone20261106.db"
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
                     .build()
                     .also { INSTANCE = it }
             }
