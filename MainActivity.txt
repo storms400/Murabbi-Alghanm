@@ -1408,10 +1408,11 @@ fun AnimalDetailsScreen(
         )
 
         OutlinedTextField(
-            eventDate, { eventDate = it },
-            label = { Text("التاريخ") },
-            modifier = Modifier.fillMaxWidth()
-        )
+            CalendarDateField(
+                label = "تاريخ الحدث",
+                value = eventDate,
+                onDateSelected = { eventDate = it }
+            )
 
         OutlinedTextField(
             eventNotes, { eventNotes = it },
@@ -1742,7 +1743,11 @@ fun SmartFarmPanel(
                 DropdownField("نوع الحدث", eventType,
                     listOf("تلقيح", "تطعيم", "علاج", "فحص بيطري", "ولادة", "فطام", "بيع", "مصروف"),
                     { eventType = it })
-                OutlinedTextField(eventDate, { eventDate = it }, label = { Text("التاريخ (YYYY-MM-DD)") }, modifier = Modifier.fillMaxWidth())
+                CalendarDateField(
+                    label = "تاريخ الحدث",
+                    value = eventDate,
+                    onDateSelected = { eventDate = it }
+                )
                 if (eventType == "بيع" || eventType == "مصروف") {
                     OutlinedTextField(eventAmount, { eventAmount = it }, label = { Text("المبلغ بالدينار الجزائري") }, modifier = Modifier.fillMaxWidth())
                 }
@@ -1784,7 +1789,11 @@ fun SmartFarmPanel(
             "الوزن والنمو" -> {
                 Text("تسجيل متابعة الوزن", style = MaterialTheme.typography.titleMedium)
                 DropdownField("الحيوان", targetTag, animals.map { it.tag }, { targetTag = it })
-                OutlinedTextField(eventDate, { eventDate = it }, label = { Text("تاريخ القياس") }, modifier = Modifier.fillMaxWidth())
+                CalendarDateField(
+                    label = "تاريخ القياس",
+                    value = eventDate,
+                    onDateSelected = { eventDate = it }
+                )
                 OutlinedTextField(eventAmount, { eventAmount = it }, label = { Text("الوزن بالكغ") }, modifier = Modifier.fillMaxWidth())
                 Button(
                     enabled = !saving && animals.isNotEmpty(),
@@ -1817,7 +1826,11 @@ fun SmartFarmPanel(
                 DropdownField("نوع الموعد", taskType,
                     listOf("موعد تلقيح", "ولادة متوقعة", "تطعيم", "علاج", "فحص بيطري", "قص الصوف", "شراء علف", "أخرى"),
                     { taskType = it })
-                OutlinedTextField(taskDate, { taskDate = it }, label = { Text("التاريخ (YYYY-MM-DD)") }, modifier = Modifier.fillMaxWidth())
+                CalendarDateField(
+                    label = "تاريخ الموعد",
+                    value = taskDate,
+                    onDateSelected = { taskDate = it }
+                )
                 OutlinedTextField(taskCount, { taskCount = it }, label = { Text("عدد الحيوانات") }, modifier = Modifier.fillMaxWidth())
                 OutlinedTextField(taskNotes, { taskNotes = it }, label = { Text("ملاحظات") }, modifier = Modifier.fillMaxWidth())
                 Button(
