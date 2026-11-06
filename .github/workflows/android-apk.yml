@@ -82,11 +82,11 @@ jobs:
           import re
           p = Path("app/src/main/AndroidManifest.xml")
           s = p.read_text()
-          s, count = re.subn(r'<application\b', '<application android:icon="@drawable/ic_sheep"', s, count=1)
+          s, count = re.subn(r'<application\b', '<application android:icon="@drawable/ic_sheep" android:label="مواشي"', s, count=1)
           if count != 1:
               raise SystemExit("Could not locate application element in AndroidManifest.xml")
           p.write_text(s)
-          print("Sheep icon configured")
+          print("Mawashi ewe icon and Arabic app label configured")
           PY
 
       - name: Force separate test application ID
