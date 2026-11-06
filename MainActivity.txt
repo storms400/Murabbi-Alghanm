@@ -373,7 +373,7 @@ class FarmViewModel(private val dao: FarmDao) : ViewModel() {
         viewModelScope.launch { onResult(runCatching { dao.saveTreatmentWithStock(record) }.getOrDefault(false)) }
     }
     fun addReproduction(record: ReproductionRecord, onResult: (Boolean) -> Unit) {
-        viewModelScope.launch { onResult(runCatching { dao.addReproduction(record); dao.addAuditEntry(AuditEntry(action = "إضافة", recordType = "تكاثر", details = "${record.femaleTag}: ${record.eventType}")) }.isSuccess) }
+        viewModelScope.launch { onResult(runCatching { dao.addReproductionWithOffspring(record) }.getOrDefault(false)) }
     }
     fun addMedicineStock(item: MedicineStock, onResult: (Boolean) -> Unit) {
         viewModelScope.launch { onResult(runCatching { dao.addMedicineStock(item); dao.addAuditEntry(AuditEntry(action = "إضافة", recordType = "مخزون دواء", details = "${item.medicineName} • كمية: ${item.quantity} • صلاحية: ${item.expiryDate}")) }.isSuccess) }
@@ -1763,6 +1763,7 @@ fun SmartFarmPanel(
     var reproductionMale by remember { mutableStateOf("") }
     var reproductionExpected by remember { mutableStateOf("") }
     var reproductionOffspring by remember { mutableStateOf("0") }
+    var reproductionOffspringTags by remember { mutableStateOf("") }
 
     var careNotes by remember { mutableStateOf("") }
     var campaignName by remember { mutableStateOf("") }
@@ -2184,6 +2185,16 @@ fun SmartFarmPanel(
                 CalendarDateField(label = "تاريخ الحدث", value = eventDate, onDateSelected = { eventDate = it })
                 CalendarDateField(label = "موعد الولادة المتوقع (اختياري)", value = reproductionExpected, onDateSelected = { reproductionExpected = it })
                 OutlinedTextField(reproductionOffspring, { reproductionOffspring = it }, label = { Text("عدد المواليد") }, modifier = Modifier.fillMaxWidth())
+                if (reproductionType == "ولادة") {
+                    OutlinedTextField(
+                        reproductionOffspringTags,
+                        { reproductionOffspringTags = it },
+                        label = { Text("أرقام المواليد المسجلة مسبقاً (افصل بينها بفاصلة)") },
+                        supportingText = { Text("يجب أن تكون بطاقات المواليد موجودة في القطيع قبل ربطها بالنسب.") },
+                        modifier = Modifier.fillMaxWidth(),
+                        minLines = 2
+                    )
+                }
                 Button(enabled = !saving && targetTag.isNotBlank(),
                     onClick = {
                         val count = reproductionOffspring.toIntOrNull() ?: -1
@@ -2192,11 +2203,16 @@ fun SmartFarmPanel(
                             message = "تحقق من التاريخ وعدد المواليد."
                         } else {
                             saving = true
+                            val childTags = reproductionOffspringTags.split(',', ';', '\\n').map { it.trim() }.filter { it.isNotBlank() }
+                            if (reproductionType == "ولادة" && (childTags.size != count || childTags.distinct().size != childTags.size)) {
+                                message = "أدخل رقماً فريداً لكل مولود، ويجب أن يساوي عدد الأرقام عدد المواليد."
+                                return@Button
+                            }
                             onAddReproduction(ReproductionRecord(femaleTag = targetTag, maleTag = reproductionMale.trim(),
                                 eventType = reproductionType, eventDate = eventDate, expectedDate = reproductionExpected,
-                                offspringCount = count)) { ok ->
+                                offspringCount = count, offspringTags = childTags.joinToString(","))) { ok ->
                                 saving = false
-                                message = if (ok) "تم حفظ حدث التكاثر." else "تعذر الحفظ."
+                                message = if (ok) "تم حفظ الحدث وربط المواليد ببطاقتي الأم والأب." else "تعذر الحفظ: تحقق من وجود بطاقات الأم والفحل والمواليد، ومن تطابق عدد الأرقام."
                             }
                         }
                     }, modifier = Modifier.fillMaxWidth()) { Text("حفظ حدث التكاثر") }
@@ -2204,7 +2220,7 @@ fun SmartFarmPanel(
                 Text("سجل التلقيح والولادات", style = MaterialTheme.typography.titleMedium)
                 reproductionRecords.forEach { item ->
                     ListItem(headlineContent = { Text("${item.femaleTag} • ${item.eventType}") },
-                        supportingContent = { Text("التاريخ: ${item.eventDate} • المتوقع: ${item.expectedDate.ifBlank { "غير محدد" }} • مواليد: ${item.offspringCount}") },
+                        supportingContent = { Text("التاريخ: ${item.eventDate} • المتوقع: ${item.expectedDate.ifBlank { "غير محدد" }} • مواليد: ${item.offspringCount} • أرقامهم: ${item.offspringTags.ifBlank { "غير مسجلة" }}") },
                         trailingContent = { TextButton(onClick = { onDeleteReproduction(item.id) { message = if (it) "تم حذف الحدث." else "تعذر الحذف." } }) { Text("حذف") } })
                 }
             }
