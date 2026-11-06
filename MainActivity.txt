@@ -184,9 +184,12 @@ private fun SecureFarmEntry(vm: FarmViewModel, dao: FarmDao, lockRequested: Bool
     }
 
     if (!loaded) Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
-    else if (unlocked) FarmScreen(vm, dao) { unlocked = false; pin = ""; message = "تم قفل التطبيق." }
-    else Column(Modifier.fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.Center,
-        horizontalAlignment = Alignment.CenterHorizontally) {
+    else Box(Modifier.fillMaxSize()) {
+        // Keep SAF launchers composed while the PIN overlay is visible.
+        FarmScreen(vm, dao) { unlocked = false; pin = ""; message = "تم قفل التطبيق." }
+        if (!unlocked) Surface(Modifier.fillMaxSize()) {
+            Column(Modifier.fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.Center,
+                horizontalAlignment = Alignment.CenterHorizontally) {
         Text("مواشي", style = MaterialTheme.typography.headlineLarge, color = MaterialTheme.colorScheme.primary)
         Text(if (owner == null) "إنشاء رمز حماية" else if (recoveryMode) "استعادة الوصول" else "أدخل رمز الحماية",
             style = MaterialTheme.typography.titleMedium)
@@ -289,6 +292,8 @@ private fun SecureFarmEntry(vm: FarmViewModel, dao: FarmDao, lockRequested: Bool
         }
         if(message.isNotBlank()) Text(message,color=MaterialTheme.colorScheme.error)
         Text("قفل تلقائي عند مغادرة التطبيق، مع تقييد المحاولات.",style=MaterialTheme.typography.bodySmall)
+            }
+        }
     }
 
     if(oneTimeRecovery.isNotBlank()) AlertDialog(
