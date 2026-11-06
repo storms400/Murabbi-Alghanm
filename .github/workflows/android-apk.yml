@@ -222,7 +222,7 @@ jobs:
               anchor = '    debugImplementation("androidx.compose.ui:ui-tooling")'
               if anchor not in s:
                   raise SystemExit("Could not locate Gradle dependency insertion point")
-              s = s.replace(anchor, anchor + "\\n" + dep, 1)
+              s = s.replace(anchor, anchor + "\n" + dep, 1)
               p.write_text(s)
           PY
           gradle --no-daemon :app:testDebugUnitTest
