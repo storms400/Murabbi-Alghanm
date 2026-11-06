@@ -248,7 +248,7 @@ jobs:
           grep -q '"mawashi_pro_v11_standalone20261106.db"' app/src/main/java/dz/murabbi/alghanm/data/FarmDatabase.kt
           echo "VERIFIED APK PACKAGE: $ACTUAL_PACKAGE"
           echo "VERIFIED DATABASE: mawashi_pro_v11_standalone20261106.db"
-          grep -q "PBKDF2WithHmacSHA256" MainActivity.txt
+          grep -q "PBKDF2WithHmacSHA256" app/src/main/java/dz/murabbi/alghanm/security/PinSecurity.kt
           grep -q "newRecoveryCode" MainActivity.txt
           grep -q "recoveryHash" MainActivity.txt
           grep -q "lockRequested" MainActivity.txt
