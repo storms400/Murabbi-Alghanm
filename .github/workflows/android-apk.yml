@@ -180,14 +180,14 @@ jobs:
             exit 1
           fi
           ACTUAL_PACKAGE="$("$AAPT" dump badging "$APK" | sed -n "s/^package: name='\\([^']*\\)'.*/\\1/p" | head -n 1)"
-          EXPECTED_PACKAGE="dz.murabbi.alghanm.mawashi.pro20261106"
+          EXPECTED_PACKAGE="dz.murabbi.alghanm.mawashi.prov220261106"
           if [ "$ACTUAL_PACKAGE" != "$EXPECTED_PACKAGE" ]; then
             echo "ERROR: APK package is $ACTUAL_PACKAGE, expected $EXPECTED_PACKAGE"
             exit 1
           fi
           grep -q '"mawashi_pro_v2_standalone20261106.db"' app/src/main/java/dz/murabbi/alghanm/data/FarmDatabase.kt
           echo "VERIFIED APK PACKAGE: $ACTUAL_PACKAGE"
-          echo "VERIFIED DATABASE: mawashi_pro_standalone20261106.db"
+          echo "VERIFIED DATABASE: mawashi_pro_v2_standalone20261106.db"
           grep -q "CREATE TABLE IF NOT EXISTS vaccine_dose_records" FarmDatabase.txt
           grep -q "CREATE TABLE IF NOT EXISTS vaccine_campaigns" FarmDatabase.txt
           grep -q "CREATE TABLE IF NOT EXISTS animal_care_status" FarmDatabase.txt
