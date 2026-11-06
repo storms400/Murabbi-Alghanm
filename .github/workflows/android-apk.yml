@@ -199,7 +199,7 @@ jobs:
             echo "ERROR: APK package is $ACTUAL_PACKAGE, expected $EXPECTED_PACKAGE"
             exit 1
           fi
-          grep -q '"mawashi_pro_v4_standalone20261106.db"' app/src/main/java/dz/murabbi/alghanm/data/FarmDatabase.kt
+          grep -q '"mawashi_pro_v5_standalone20261106.db"' app/src/main/java/dz/murabbi/alghanm/data/FarmDatabase.kt
           echo "VERIFIED APK PACKAGE: $ACTUAL_PACKAGE"
           echo "VERIFIED DATABASE: mawashi_pro_v5_standalone20261106.db"
           grep -q "CREATE TABLE IF NOT EXISTS treatment_records" FarmDatabase.txt
