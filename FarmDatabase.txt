@@ -92,7 +92,8 @@ data class TreatmentRecord(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val animalTag: String, val diagnosis: String, val medicineName: String,
     val dose: String = "", val startDate: String, val endDate: String = "",
-    val veterinarian: String = "", val withdrawalUntil: String = "", val notes: String = ""
+    val veterinarian: String = "", val withdrawalUntil: String = "", val notes: String = "",
+    val quantityUsed: Double = 0.0
 )
 
 @Entity(tableName = "reproduction_records")
@@ -100,7 +101,7 @@ data class ReproductionRecord(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val femaleTag: String, val maleTag: String = "", val eventType: String,
     val eventDate: String, val expectedDate: String = "", val offspringCount: Int = 0,
-    val notes: String = ""
+    val notes: String = "", val offspringTags: String = ""
 )
 
 @Entity(tableName = "medicine_stock")
@@ -122,6 +123,17 @@ data class AuditEntry(
 data class AppUser(
     @PrimaryKey val username: String, val role: String,
     val pinHash: String, val active: Boolean = true
+)
+
+@Entity(tableName = "finance_entries")
+data class FinanceEntry(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val entryType: String,
+    val category: String,
+    val amountDzd: Double,
+    val entryDate: String,
+    val description: String = "",
+    val animalTag: String = ""
 )
 
 @Dao
