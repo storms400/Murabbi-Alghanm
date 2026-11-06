@@ -1755,6 +1755,8 @@ fun SmartFarmPanel(
     var financeCategory by remember { mutableStateOf("أدوية") }
     var financeAmount by remember { mutableStateOf("") }
     var financeDescription by remember { mutableStateOf("") }
+    var financeDate by remember { mutableStateOf(today.toString()) }
+    var financeAnimalTag by remember { mutableStateOf("عام") }
     var editingFinanceId by remember { mutableLongStateOf(0L) }
     var medicineName by remember { mutableStateOf("") }
     var medicineQuantity by remember { mutableStateOf("") }
@@ -1810,6 +1812,19 @@ fun SmartFarmPanel(
         medicineStock.forEach { appendLine("مخزون دواء,${csv(it.medicineName)},${csv(it.expiryDate)},${csv("الكمية ${it.quantity} ${it.unit} - دفعة ${it.batchNumber} - المورد ${it.supplier}")}") }
         financeEntries.forEach { appendLine("حركة مالية,${csv(it.entryType + " - " + it.category)},${csv(it.entryDate)},${csv(it.amountDzd.toString() + " دج - " + it.description + " - الحيوان " + it.animalTag)}") }
         auditEntries.forEach { appendLine("تدقيق,${csv(it.recordType + " - " + it.action)},${csv(java.time.Instant.ofEpochMilli(it.createdAt).toString())},${csv(it.recordId + " - " + it.details)}") }
+    }
+
+    val csvLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/csv")) { uri ->
+        if (uri != null) {
+            val result = runCatching {
+                val output = context.contentResolver.openOutputStream(uri) ?: error("تعذر فتح ملف التصدير")
+                output.use { stream ->
+                    stream.write(byteArrayOf(0xEF.toByte(), 0xBB.toByte(), 0xBF.toByte()))
+                    stream.write(exportText.toByteArray(Charsets.UTF_8))
+                }
+            }
+            message = if (result.isSuccess) "تم إنشاء ملف CSV وحفظه." else "تعذر إنشاء ملف CSV: ${result.exceptionOrNull()?.message ?: "خطأ غير معروف"}"
+        }
     }
 
     Column(
@@ -2189,8 +2204,8 @@ fun SmartFarmPanel(
                     OutlinedTextField(
                         reproductionOffspringTags,
                         { reproductionOffspringTags = it },
-                        label = { Text("أرقام المواليد المسجلة مسبقاً (افصل بينها بفاصلة)") },
-                        supportingText = { Text("يجب أن تكون بطاقات المواليد موجودة في القطيع قبل ربطها بالنسب.") },
+                        label = { Text("أرقام بطاقات المواليد الجديدة (افصل بينها بفاصلة)") },
+                        supportingText = { Text("سينشئ التطبيق بطاقة مستقلة لكل مولود ويربطها تلقائياً بالأم والأب، مع جنس غير محدد حتى إدخاله لاحقاً.") },
                         modifier = Modifier.fillMaxWidth(),
                         minLines = 2
                     )
@@ -2203,8 +2218,8 @@ fun SmartFarmPanel(
                             message = "تحقق من التاريخ وعدد المواليد."
                         } else {
                             val childTags = reproductionOffspringTags.split(',', ';', '\n').map { it.trim() }.filter { it.isNotBlank() }
-                            if (reproductionType == "ولادة" && (reproductionMale.isBlank() || childTags.size != count || childTags.distinct().size != childTags.size)) {
-                                message = "أدخل رمز الفحل وأرقاماً فريدة لكل مولود، ويجب أن يساوي عدد الأرقام عدد المواليد."
+                            if (reproductionType == "ولادة" && (childTags.size != count || childTags.distinct().size != childTags.size || childTags.any { it.isBlank() })) {
+                                 message = "أدخل رقماً فريداً لكل مولود، ويجب أن يساوي عدد الأرقام عدد المواليد."
                                 return@Button
                             }
                             saving = true
@@ -2230,16 +2245,18 @@ fun SmartFarmPanel(
                 DropdownField("التصنيف", financeCategory, listOf("أعلاف", "أدوية", "بيطرة", "شراء حيوانات", "بيع حيوانات", "عمالة", "نقل", "أخرى"), { financeCategory = it })
                 OutlinedTextField(financeAmount, { financeAmount = it }, label = { Text("المبلغ بالدينار الجزائري") }, modifier = Modifier.fillMaxWidth())
                 OutlinedTextField(financeDescription, { financeDescription = it }, label = { Text("التفاصيل") }, modifier = Modifier.fillMaxWidth())
+                CalendarDateField(label = "تاريخ الحركة المالية", value = financeDate, onDateSelected = { financeDate = it })
+                DropdownField("الحيوان المرتبط", financeAnimalTag, listOf("عام") + animals.map { it.tag }, { financeAnimalTag = it })
                 Button(enabled = !saving && (financeAmount.replace(',', '.').toDoubleOrNull() ?: 0.0) > 0,
                     onClick = {
                         val amount = financeAmount.replace(',', '.').toDoubleOrNull() ?: 0.0
                         saving = true
-                        val entry = FinanceEntry(id = editingFinanceId, entryType = financeType, category = financeCategory, amountDzd = amount, entryDate = today.toString(), description = financeDescription.trim())
+                        val entry = FinanceEntry(id = editingFinanceId, entryType = financeType, category = financeCategory, amountDzd = amount, entryDate = financeDate, description = financeDescription.trim(), animalTag = if (financeAnimalTag == "عام") "" else financeAnimalTag)
                         val wasEditing = editingFinanceId > 0L
                         val finishSave: (Boolean) -> Unit = { ok ->
                             saving = false
                             message = if (ok) (if (wasEditing) "تم تحديث الحركة المالية." else "تم تسجيل الحركة المالية.") else "تعذر الحفظ."
-                            if (ok) { financeAmount = ""; financeDescription = ""; editingFinanceId = 0L }
+                            if (ok) { financeAmount = ""; financeDescription = ""; financeDate = today.toString(); financeAnimalTag = "عام"; editingFinanceId = 0L }
                         }
                         if (wasEditing) onUpdateFinance(entry, finishSave) else onAddFinance(entry, finishSave)
                     }, modifier = Modifier.fillMaxWidth()) { Text("حفظ الحركة المالية") }
@@ -2261,6 +2278,8 @@ fun SmartFarmPanel(
                                     financeCategory = item.category
                                     financeAmount = item.amountDzd.toString()
                                     financeDescription = item.description
+                                    financeDate = item.entryDate
+                                    financeAnimalTag = item.animalTag.ifBlank { "عام" }
                                     message = "تعديل الحركة المالية المحددة ثم اضغط حفظ."
                                 }) { Text("تعديل") }
                                 TextButton(onClick = {
@@ -2282,12 +2301,7 @@ fun SmartFarmPanel(
                     color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Button(
                     onClick = {
-                        val intent = Intent(Intent.ACTION_SEND).apply {
-                            type = "text/csv"
-                            putExtra(Intent.EXTRA_SUBJECT, "نسخة بيانات مواشي")
-                            putExtra(Intent.EXTRA_TEXT, exportText)
-                        }
-                        context.startActivity(Intent.createChooser(intent, "تصدير بيانات المزرعة"))
+                        csvLauncher.launch("Mawashi-Records-${today}.csv")
                     }, modifier = Modifier.fillMaxWidth()
                 ) { Text("تصدير سجلات المزرعة CSV") }
                 Text("يشمل التصدير الحيوانات والمشتريات والاستهلاك والمهام والأحداث وسجلات اللقاحات والحملات والحالة الصحية.", style = MaterialTheme.typography.bodySmall)
