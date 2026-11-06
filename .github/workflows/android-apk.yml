@@ -82,11 +82,22 @@ jobs:
           import re
           p = Path("app/src/main/AndroidManifest.xml")
           s = p.read_text()
-          s, count = re.subn(r'<application\b', '<application android:icon="@drawable/ic_sheep" android:label="مواشي"', s, count=1)
-          if count != 1:
+          match = re.search(r'<application\\b[^>]*>', s)
+          if not match:
               raise SystemExit("Could not locate application element in AndroidManifest.xml")
+          tag = match.group(0)
+          def set_android_attr(tag, name, value):
+              pattern = r'\\sandroid:' + re.escape(name) + r'="[^"]*"'
+              if re.search(pattern, tag):
+                  return re.sub(pattern, ' android:' + name + '="' + value + '"', tag, count=1)
+              return tag[:-1] + ' android:' + name + '="' + value + '">'
+          tag = set_android_attr(tag, "icon", "@drawable/ic_sheep")
+          tag = set_android_attr(tag, "label", "مواشي")
+          s = s[:match.start()] + tag + s[match.end():]
+          import xml.etree.ElementTree as ET
+          ET.fromstring(s)
           p.write_text(s)
-          print("Mawashi ewe icon and Arabic app label configured")
+          print("Validated AndroidManifest.xml; Mawashi icon and label configured")
           PY
 
       - name: Force separate test application ID
