@@ -93,7 +93,8 @@ data class TreatmentRecord(
     val animalTag: String, val diagnosis: String, val medicineName: String,
     val dose: String = "", val startDate: String, val endDate: String = "",
     val veterinarian: String = "", val withdrawalUntil: String = "", val notes: String = "",
-    val quantityUsed: Double = 0.0
+    val quantityUsed: Double = 0.0,
+    val medicineBatchId: Long = 0
 )
 
 @Entity(tableName = "reproduction_records")
@@ -245,6 +246,8 @@ abstract class FarmDao {
     @Insert abstract suspend fun addTreatment(record: TreatmentRecord)
     @Update abstract suspend fun updateTreatment(record: TreatmentRecord)
     @Query("DELETE FROM treatment_records WHERE id = :id") abstract suspend fun deleteTreatment(id: Long)
+    @Query("SELECT * FROM treatment_records WHERE id = :id LIMIT 1") abstract suspend fun treatmentById(id: Long): TreatmentRecord?
+    @Query("UPDATE medicine_stock SET quantity = quantity + :amount WHERE id = :id") abstract suspend fun restoreMedicineStock(id: Long, amount: Double)
     @Query("SELECT * FROM treatment_records ORDER BY startDate DESC, id DESC") abstract fun treatments(): Flow<List<TreatmentRecord>>
     @Insert abstract suspend fun addReproduction(record: ReproductionRecord)
     @Update abstract suspend fun updateReproduction(record: ReproductionRecord)
@@ -257,12 +260,24 @@ abstract class FarmDao {
     @Query("SELECT * FROM medicine_stock WHERE medicineName = :name AND quantity >= :amount AND expiryDate >= :today ORDER BY expiryDate ASC, id ASC") abstract suspend fun availableMedicineBatches(name: String, amount: Double, today: String): List<MedicineStock>
     @Query("UPDATE medicine_stock SET quantity = quantity - :amount WHERE id = :id AND quantity >= :amount AND expiryDate >= :today") abstract suspend fun deductMedicineStock(id: Long, amount: Double, today: String): Int
     @Transaction open suspend fun saveTreatmentWithStock(record: TreatmentRecord): Boolean {
-        if (record.quantityUsed > 0.0) {
-            val batch = availableMedicineBatches(record.medicineName, record.quantityUsed, java.time.LocalDate.now().toString()).firstOrNull() ?: return false
-            if (deductMedicineStock(batch.id, record.quantityUsed, java.time.LocalDate.now().toString()) != 1) return false
+        val saved = if (record.quantityUsed > 0.0) {
+            val today = java.time.LocalDate.now().toString()
+            val batch = availableMedicineBatches(record.medicineName, record.quantityUsed, today).firstOrNull() ?: return false
+            if (deductMedicineStock(batch.id, record.quantityUsed, today) != 1) return false
+            record.copy(medicineBatchId = batch.id)
+        } else record
+        addTreatment(saved)
+        addAuditEntry(AuditEntry(action = "إضافة", recordType = "علاج", details = saved.animalTag + ": " + saved.diagnosis + " • " + saved.medicineName))
+        return true
+    }
+
+    @Transaction open suspend fun deleteTreatmentAndRestoreStock(id: Long): Boolean {
+        val record = treatmentById(id) ?: return false
+        if (record.medicineBatchId > 0 && record.quantityUsed > 0.0) {
+            restoreMedicineStock(record.medicineBatchId, record.quantityUsed)
         }
-        addTreatment(record)
-        addAuditEntry(AuditEntry(action = "إضافة", recordType = "علاج", details = record.animalTag + ": " + record.diagnosis + " • " + record.medicineName))
+        deleteTreatment(id)
+        addAuditEntry(AuditEntry(action = "حذف", recordType = "علاج", recordId = id.toString(), details = "تمت إعادة كمية الدواء المرتبطة إن وجدت"))
         return true
     }
     @Insert abstract suspend fun addAuditEntry(entry: AuditEntry)
@@ -292,7 +307,7 @@ abstract class FarmDao {
         TreatmentRecord::class, ReproductionRecord::class, MedicineStock::class,
         AuditEntry::class, AppUser::class, FinanceEntry::class
     ],
-    version = 6,
+    version = 7,
     exportSchema = true
 )
 abstract class FarmDatabase : RoomDatabase() {
@@ -354,14 +369,20 @@ abstract class FarmDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_6_7 = object : Migration(6, 7) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE treatment_records ADD COLUMN medicineBatchId INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+
         fun get(context: Context): FarmDatabase =
             INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(
                     context.applicationContext,
                     FarmDatabase::class.java,
-                    "mawashi_pro_v5_standalone20261106.db"
+                    "mawashi_pro_v6_standalone20261106.db"
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
                     .build()
                     .also { INSTANCE = it }
             }
