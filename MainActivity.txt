@@ -173,7 +173,7 @@ private fun SecureFarmEntry(vm: FarmViewModel, dao: FarmDao, lockRequested: Bool
     var saving by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
-    val prefs = remember { context.getSharedPreferences("mawashi_security_v11", Context.MODE_PRIVATE) }
+    val prefs = remember { context.getSharedPreferences("mawashi_security_v12", Context.MODE_PRIVATE) }
 
     LaunchedEffect(Unit) { owner = dao.activeOwner(); loaded = true }
     LaunchedEffect(lockRequested) {
