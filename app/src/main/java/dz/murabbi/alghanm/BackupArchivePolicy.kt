@@ -1,11 +1,32 @@
 package dz.murabbi.alghanm
 
-/** Pure archive policy helpers kept separate so CI can exercise hostile ZIP paths. */
+/** Pure validation rules for untrusted backup archives; deliberately JVM-testable. */
 internal object BackupArchivePolicy {
-    fun safeEntryName(name: String): Boolean =
-        name.isNotBlank() && !name.startsWith("/") && !name.contains("..") &&
-            !name.contains('\\') && !name.contains('\u0000')
+    private val photoExtensions = setOf("jpg", "jpeg", "png", "webp", "gif", "heic", "heif")
+
+    fun safeEntryName(name: String): Boolean {
+        if (name.isBlank() || name.startsWith("/") || name.startsWith("\\\\") ||
+            name.contains('\\\\') || name.contains('\\u0000') || name.contains(':')) return false
+        val segments = name.split('/')
+        return segments.none { it.isBlank() || it == "." || it == ".." } &&
+            segments.all { it.all { ch -> ch.isLetterOrDigit() || ch in "._-" } }
+    }
 
     fun supportedPhotoExtension(extension: String): Boolean =
-        extension.lowercase() in setOf("jpg", "jpeg", "png", "webp", "gif", "heic", "heif")
+        extension.lowercase() in photoExtensions
+
+    fun safePhotoEntry(name: String): Boolean {
+        if (!safeEntryName(name) || !name.startsWith("photos/")) return false
+        val leaf = name.removePrefix("photos/")
+        if (leaf.contains('/')) return false
+        val ext = leaf.substringAfterLast('.', "")
+        return leaf.substringBeforeLast('.', "").isNotBlank() && supportedPhotoExtension(ext)
+    }
+
+    fun isDuplicateEntry(seen: Set<String>, name: String): Boolean =
+        name in seen
+
+    fun withinLimit(currentBytes: Long, incomingBytes: Long, maxBytes: Long): Boolean =
+        currentBytes >= 0 && incomingBytes >= 0 && maxBytes >= 0 &&
+            incomingBytes <= maxBytes - currentBytes
 }
