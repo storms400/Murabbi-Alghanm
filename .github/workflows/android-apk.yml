@@ -18,6 +18,7 @@ name: Build Android APK
       - "mqane-comprehensive-independent"
       - "mqane-vaccination-independent-2026"
       - "mqane-professional-pages-independent-2026"
+      - "mqane-exact-independent-copy-2026"
 
 jobs:
   build:
