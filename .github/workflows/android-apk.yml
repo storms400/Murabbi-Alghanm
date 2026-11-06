@@ -211,6 +211,22 @@ jobs:
           print(f"VERIFIED ISOLATED PACKAGE: {m.group(1)}")
           PY
 
+      - name: Configure and run JVM security tests
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("app/build.gradle.kts")
+          s = p.read_text()
+          dep = '    testImplementation("junit:junit:4.13.2")'
+          if dep not in s:
+              anchor = '    debugImplementation("androidx.compose.ui:ui-tooling")'
+              if anchor not in s:
+                  raise SystemExit("Could not locate Gradle dependency insertion point")
+              s = s.replace(anchor, anchor + "\\n" + dep, 1)
+              p.write_text(s)
+          PY
+          gradle --no-daemon :app:testDebugUnitTest
+
       - name: Build APK
         run: gradle --no-daemon :app:assembleDebug
 
