@@ -260,17 +260,33 @@ abstract class FarmDao {
     abstract suspend fun linkAnimalParents(childTag: String, motherTag: String, fatherTag: String, birthDate: String): Int
     @Transaction open suspend fun addReproductionWithOffspring(record: ReproductionRecord): Boolean {
         val mother = animalByTag(record.femaleTag) ?: return false
+        val eventDate = runCatching { java.time.LocalDate.parse(record.eventDate) }.getOrNull() ?: return false
+        if (record.eventType !in listOf("تلقيح", "تأكيد حمل", "ولادة", "فطام")) return false
+        if (record.eventType == "تلقيح" && record.maleTag.isBlank()) return false
         if (record.eventType == "ولادة") {
             val father = if (record.maleTag.isBlank()) null else animalByTag(record.maleTag) ?: return false
+            if (father?.tag == mother.tag) return false
             val tags = record.offspringTags.split(',', '\n', ';').map { it.trim() }.filter { it.isNotBlank() }
             if (record.offspringCount != tags.size || tags.isEmpty() || tags.distinct().size != tags.size) return false
-            if (tags.any { it == record.femaleTag || it == record.maleTag || animalByTag(it) == null }) return false
-            tags.forEach { child ->
-                if (linkAnimalParents(child, mother.tag, father?.tag ?: "", record.eventDate) != 1) return false
+            if (tags.any { it == mother.tag || it == father?.tag || animalByTag(it) != null }) return false
+            tags.forEach { childTag ->
+                insertAnimal(Animal(
+                    tag = childTag,
+                    sex = "غير محدد",
+                    category = "حمل",
+                    weightKg = 0.0,
+                    birthDate = eventDate.toString(),
+                    motherTag = mother.tag,
+                    fatherTag = father?.tag ?: ""
+                ))
             }
         }
         addReproduction(record)
-        addAuditEntry(AuditEntry(action = "إضافة", recordType = "تكاثر", details = "${record.femaleTag}: ${record.eventType} • الأبناء: ${record.offspringTags}"))
+        addAuditEntry(AuditEntry(
+            action = "إضافة",
+            recordType = "تكاثر",
+            details = "${record.femaleTag}: ${record.eventType} • الأبناء المنشأة: ${record.offspringTags}"
+        ))
         return true
     }
     @Insert abstract suspend fun addMedicineStock(item: MedicineStock)
@@ -425,7 +441,7 @@ abstract class FarmDatabase : RoomDatabase() {
                 INSTANCE ?: Room.databaseBuilder(
                     context.applicationContext,
                     FarmDatabase::class.java,
-                    "mawashi_pro_v8_standalone20261106.db"
+                    "mawashi_pro_v9_standalone20261106.db"
                 )
                     .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
                     .build()
