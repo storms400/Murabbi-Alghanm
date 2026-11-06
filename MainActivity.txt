@@ -1496,7 +1496,7 @@ fun ScientificSheepGuide(animals: List<Animal>) {
                 }
             }
             Text("مهم: المادة الجافة ليست وزن العلف كما يقدم. لتحويلها إلى علف فعلي اقسم كمية المادة الجافة على نسبة المادة الجافة المكتوبة أو المحللة للعلف.")
-            if (stage == "أواخر الحمل" && daysToLambing.toIntOrNull() in 0..45) {
+            if (stage == "أواخر الحمل" && (daysToLambing.toIntOrNull()?.let { it in 0..45 } == true)) {
                 Text("تذكير رعاية: خلال آخر 30–45 يوماً قبل الولادة، راجع التحصين المعتمد محلياً وفحص الحالة الجسمية والعليقة مع الطبيب البيطري.",
                     color = MaterialTheme.colorScheme.primary)
             }
