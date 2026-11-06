@@ -125,7 +125,8 @@ data class AuditEntry(
 @Entity(tableName = "app_users")
 data class AppUser(
     @PrimaryKey val username: String, val role: String,
-    val pinHash: String, val active: Boolean = true
+    val pinHash: String, val active: Boolean = true,
+    @ColumnInfo(defaultValue = "''") val recoveryHash: String = ""
 )
 
 @Entity(tableName = "finance_entries")
@@ -147,6 +148,8 @@ abstract class FarmDao {
 
     @Query("SELECT * FROM animals ORDER BY createdAt DESC")
     abstract fun allAnimals(): Flow<List<Animal>>
+    @Query("SELECT * FROM animals ORDER BY createdAt DESC")
+    abstract suspend fun allAnimalsOnce(): List<Animal>
 
     @Insert(onConflict = OnConflictStrategy.ABORT)
     abstract suspend fun insertAnimal(animal: Animal)
@@ -363,7 +366,7 @@ abstract class FarmDao {
         TreatmentRecord::class, ReproductionRecord::class, MedicineStock::class,
         AuditEntry::class, AppUser::class, FinanceEntry::class
     ],
-    version = 8,
+    version = 9,
     exportSchema = true
 )
 abstract class FarmDatabase : RoomDatabase() {
@@ -437,14 +440,27 @@ abstract class FarmDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_8_9 = object : Migration(8, 9) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE app_users ADD COLUMN recoveryHash TEXT NOT NULL DEFAULT ''")
+            }
+        }
+
+        fun closeInstance() {
+            synchronized(this) {
+                INSTANCE?.close()
+                INSTANCE = null
+            }
+        }
+
         fun get(context: Context): FarmDatabase =
             INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(
                     context.applicationContext,
                     FarmDatabase::class.java,
-                    "mawashi_pro_v10_standalone20261106.db"
+                    "mawashi_pro_v11_standalone20261106.db"
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9)
                     .build()
                     .also { INSTANCE = it }
             }
