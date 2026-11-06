@@ -580,10 +580,9 @@ fun FarmScreen(vm: FarmViewModel, onLock: () -> Unit = {}) {
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
-            TopAppBar(title = { Text("مواشي") }, actions = {
-                TextButton(onClick = onLock) { Text("قفل") }
-            })
-        },
+            TopAppBar(
+                title = { Text("مواشي") },
+                actions = { TextButton(onClick = onLock) { Text("قفل") } },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.surface
                 )
