@@ -87,7 +87,6 @@ object MawashiBackup {
                             }
                         }
                     }
-                }
             } finally {
                 FarmDatabase.get(context)
             }
