@@ -157,9 +157,94 @@ class MainActivity : ComponentActivity() {
                 CompositionLocalProvider(
                     LocalLayoutDirection provides LayoutDirection.Rtl
                 ) {
-                    FarmScreen(vm)
+                    SecureFarmEntry(vm, db.farmDao())
                 }
             }
+        }
+    }
+}
+
+
+private fun createPinHash(pin: String): String {
+    val salt = ByteArray(16).also { java.security.SecureRandom().nextBytes(it) }
+    val spec = javax.crypto.spec.PBEKeySpec(pin.toCharArray(), salt, 120000, 256)
+    val hash = javax.crypto.SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256").generateSecret(spec).encoded
+    spec.clearPassword()
+    return "v1:" + android.util.Base64.encodeToString(salt, android.util.Base64.NO_WRAP) + ":" +
+        android.util.Base64.encodeToString(hash, android.util.Base64.NO_WRAP)
+}
+
+private fun verifyPin(pin: String, stored: String): Boolean = runCatching {
+    val parts = stored.split(":")
+    if (parts.size != 3 || parts[0] != "v1") return false
+    val salt = android.util.Base64.decode(parts[1], android.util.Base64.NO_WRAP)
+    val expected = android.util.Base64.decode(parts[2], android.util.Base64.NO_WRAP)
+    val spec = javax.crypto.spec.PBEKeySpec(pin.toCharArray(), salt, 120000, 256)
+    val actual = javax.crypto.SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256").generateSecret(spec).encoded
+    spec.clearPassword()
+    java.security.MessageDigest.isEqual(expected, actual)
+}.getOrDefault(false)
+
+@Composable
+private fun SecureFarmEntry(vm: FarmViewModel, dao: FarmDao) {
+    var owner by remember { mutableStateOf<AppUser?>(null) }
+    var loaded by remember { mutableStateOf(false) }
+    var unlocked by remember { mutableStateOf(false) }
+    var pin by remember { mutableStateOf("") }
+    var confirmation by remember { mutableStateOf("") }
+    var message by remember { mutableStateOf("") }
+    val scope = rememberCoroutineScope()
+    LaunchedEffect(Unit) { owner = dao.activeOwner(); loaded = true }
+    if (!loaded) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
+    } else if (unlocked) {
+        FarmScreen(vm)
+    } else {
+        Column(Modifier.fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.Center,
+            horizontalAlignment = Alignment.CenterHorizontally) {
+            Text("مواشي", style = MaterialTheme.typography.headlineLarge, color = MaterialTheme.colorScheme.primary)
+            Text(if (owner == null) "إنشاء رمز حماية للتطبيق" else "أدخل رمز الحماية",
+                style = MaterialTheme.typography.titleMedium)
+            Spacer(Modifier.height(16.dp))
+            OutlinedTextField(value=pin, onValueChange={ if (it.length<=8 && it.all(Char::isDigit)) pin=it },
+                label={Text("رمز PIN من 4 إلى 8 أرقام")}, singleLine=true,
+                visualTransformation=androidx.compose.ui.text.input.PasswordVisualTransformation(),
+                keyboardOptions=androidx.compose.foundation.text.KeyboardOptions(
+                    keyboardType=androidx.compose.ui.text.input.KeyboardType.NumberPassword),
+                modifier=Modifier.fillMaxWidth())
+            if (owner == null) {
+                OutlinedTextField(value=confirmation, onValueChange={ if (it.length<=8 && it.all(Char::isDigit)) confirmation=it },
+                    label={Text("تأكيد الرمز")}, singleLine=true,
+                    visualTransformation=androidx.compose.ui.text.input.PasswordVisualTransformation(),
+                    keyboardOptions=androidx.compose.foundation.text.KeyboardOptions(
+                        keyboardType=androidx.compose.ui.text.input.KeyboardType.NumberPassword),
+                    modifier=Modifier.fillMaxWidth())
+            }
+            if (message.isNotBlank()) Text(message, color=MaterialTheme.colorScheme.error)
+            Button(modifier=Modifier.fillMaxWidth(), onClick={
+                if (pin.length !in 4..8) message="يجب أن يتكون الرمز من 4 إلى 8 أرقام."
+                else if (owner == null) {
+                    if (pin != confirmation) message="الرمزان غير متطابقين."
+                    else {
+                        val hash=createPinHash(pin)
+                        scope.launch {
+                            runCatching {
+                                dao.saveAppUser(AppUser(username="owner", role="admin", pinHash=hash))
+                                dao.addAuditEntry(AuditEntry(action="تهيئة", recordType="الأمان",
+                                    details="تم تفعيل رمز حماية محلي"))
+                            }.onSuccess {
+                                owner=dao.activeOwner(); unlocked=true; pin=""; confirmation=""; message=""
+                            }.onFailure { message="تعذر حفظ رمز الحماية." }
+                        }
+                    }
+                } else if (verifyPin(pin, owner!!.pinHash)) {
+                    unlocked=true; pin=""; message=""
+                } else {
+                    pin=""; message="رمز الحماية غير صحيح."
+                }
+            }) { Text(if (owner == null) "تفعيل الحماية وفتح التطبيق" else "فتح التطبيق") }
+            Text("يُخزَّن الرمز بصيغة مشتقة مع ملح عشوائي، ولا يُحفظ الرمز نفسه.",
+                style=MaterialTheme.typography.bodySmall)
         }
     }
 }
