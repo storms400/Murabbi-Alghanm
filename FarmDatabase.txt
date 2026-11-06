@@ -65,6 +65,27 @@ data class HerdEvent(
     val notes: String = ""
 )
 
+@Entity(tableName = "vaccine_dose_records")
+data class VaccineDoseRecord(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val animalTag: String, val vaccineKey: String, val vaccineName: String,
+    val productName: String = "", val administeredDate: String, val doseText: String = "",
+    val batchNumber: String = "", val nextDueDate: String = "", val veterinarian: String = "", val notes: String = ""
+)
+
+@Entity(tableName = "vaccine_campaigns")
+data class VaccineCampaign(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val name: String, val authorityReference: String, val targetGroup: String,
+    val startDate: String, val endDate: String = "", val status: String = "معلنة", val notes: String = ""
+)
+
+@Entity(tableName = "animal_care_status")
+data class AnimalCareStatus(
+    @PrimaryKey val animalTag: String,
+    val status: String = "طبيعي", val notes: String = "", val updatedAt: Long = System.currentTimeMillis()
+)
+
 @Dao
 abstract class FarmDao {
 
@@ -158,6 +179,19 @@ abstract class FarmDao {
     @Query("SELECT * FROM herd_events ORDER BY id DESC")
     abstract fun events(): Flow<List<HerdEvent>>
 
+    @Query("SELECT * FROM vaccine_dose_records ORDER BY administeredDate DESC, id DESC")
+    abstract fun vaccineRecords(): Flow<List<VaccineDoseRecord>>
+    @Insert
+    abstract suspend fun addVaccineRecord(record: VaccineDoseRecord)
+    @Query("SELECT * FROM vaccine_campaigns ORDER BY startDate DESC, id DESC")
+    abstract fun vaccineCampaigns(): Flow<List<VaccineCampaign>>
+    @Insert
+    abstract suspend fun addVaccineCampaign(campaign: VaccineCampaign)
+    @Query("SELECT * FROM animal_care_status ORDER BY animalTag")
+    abstract fun animalCareStatuses(): Flow<List<AnimalCareStatus>>
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    abstract suspend fun saveAnimalCareStatus(status: AnimalCareStatus)
+
     @Query("SELECT COUNT(*) FROM animals WHERE active = 1")
     abstract fun activeCount(): Flow<Int>
 }
@@ -168,9 +202,12 @@ abstract class FarmDao {
         FeedPurchase::class,
         FeedConsumption::class,
         FarmTask::class,
-        HerdEvent::class
+        HerdEvent::class,
+        VaccineDoseRecord::class,
+        VaccineCampaign::class,
+        AnimalCareStatus::class
     ],
-    version = 3,
+    version = 4,
     exportSchema = true
 )
 abstract class FarmDatabase : RoomDatabase() {
@@ -206,14 +243,22 @@ abstract class FarmDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("CREATE TABLE IF NOT EXISTS vaccine_dose_records (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, animalTag TEXT NOT NULL, vaccineKey TEXT NOT NULL, vaccineName TEXT NOT NULL, productName TEXT NOT NULL, administeredDate TEXT NOT NULL, doseText TEXT NOT NULL, batchNumber TEXT NOT NULL, nextDueDate TEXT NOT NULL, veterinarian TEXT NOT NULL, notes TEXT NOT NULL)")
+                db.execSQL("CREATE TABLE IF NOT EXISTS vaccine_campaigns (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, name TEXT NOT NULL, authorityReference TEXT NOT NULL, targetGroup TEXT NOT NULL, startDate TEXT NOT NULL, endDate TEXT NOT NULL, status TEXT NOT NULL, notes TEXT NOT NULL)")
+                db.execSQL("CREATE TABLE IF NOT EXISTS animal_care_status (animalTag TEXT NOT NULL PRIMARY KEY, status TEXT NOT NULL, notes TEXT NOT NULL, updatedAt INTEGER NOT NULL)")
+            }
+        }
+
         fun get(context: Context): FarmDatabase =
             INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(
                     context.applicationContext,
                     FarmDatabase::class.java,
-                    "mawashi_standalone20261106.db"
+                    "mawashi_pro_standalone20261106.db"
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
                     .build()
                     .also { INSTANCE = it }
             }
