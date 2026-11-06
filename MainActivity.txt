@@ -18,6 +18,11 @@ import android.graphics.BitmapFactory
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.Alignment
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.background
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -299,6 +304,7 @@ fun FarmScreen(vm: FarmViewModel) {
 
     var selectedTab by remember { mutableIntStateOf(0) }
     var selectedAnimal by remember { mutableStateOf<Animal?>(null) }
+    var selectedSmartSection by remember { mutableStateOf<String?>(null) }
     var screenMessage by remember { mutableStateOf("") }
 
     val tabs = listOf(
@@ -306,7 +312,7 @@ fun FarmScreen(vm: FarmViewModel) {
         Triple("القطيع", "🐑", 1),
         Triple("المشتريات", "🛒", 2),
         Triple("التغذية", "🌾", 3),
-        Triple("المزيد", "☰", 4)
+        Triple("الأقسام", "▦", 4)
     )
 
     Scaffold(
@@ -315,9 +321,13 @@ fun FarmScreen(vm: FarmViewModel) {
             TopAppBar(
                 title = {
                     Column(verticalArrangement = Arrangement.spacedBy(0.dp)) {
-                        Text("مربي الغنم", style = MaterialTheme.typography.titleLarge)
                         Text(
-                            "إدارة مراحك بسهولة",
+                            if (selectedAnimal != null) "بطاقة الحيوان"
+                            else selectedSmartSection ?: tabs[selectedTab].first,
+                            style = MaterialTheme.typography.titleLarge
+                        )
+                        Text(
+                            "مربي الغنم • إدارة مراحك بسهولة",
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -339,14 +349,10 @@ fun FarmScreen(vm: FarmViewModel) {
                         onClick = {
                             selectedTab = index
                             selectedAnimal = null
+                            selectedSmartSection = null
                             screenMessage = ""
                         },
-                        icon = {
-                            Text(
-                                item.second,
-                                style = MaterialTheme.typography.titleLarge
-                            )
-                        },
+                        icon = { FarmNavIcon(item.second, index, selectedTab == index) },
                         label = { Text(item.first, style = MaterialTheme.typography.labelSmall) }
                     )
                 }
@@ -422,19 +428,27 @@ fun FarmScreen(vm: FarmViewModel) {
                             vm.addConsumption(name, qty, category, count, notes, result)
                         }
                     )
-                    else -> SmartFarmPanel(
-                        animals = animals,
-                        purchases = purchases,
-                        consumptions = consumptions,
-                        tasks = tasks,
-                        events = events,
-                        onAddEvent = { tag, type, date, notes, result ->
-                            vm.addAnimalEvent(tag, type, date, notes, result)
-                        },
-                        onAddTask = { type, date, count, notes, result ->
-                            vm.addTask(type, date, count, notes, result)
+                    else -> {
+                        if (selectedSmartSection == null) {
+                            SmartSectionsHome(onSelect = { selectedSmartSection = it })
+                        } else {
+                            SmartFarmPanel(
+                                animals = animals,
+                                purchases = purchases,
+                                consumptions = consumptions,
+                                tasks = tasks,
+                                events = events,
+                                initialSection = selectedSmartSection!!,
+                                onBack = { selectedSmartSection = null },
+                                onAddEvent = { tag, type, date, notes, result ->
+                                    vm.addAnimalEvent(tag, type, date, notes, result)
+                                },
+                                onAddTask = { type, date, count, notes, result ->
+                                    vm.addTask(type, date, count, notes, result)
+                                }
+                            )
                         }
-                    )
+                    }
                 }
             }
         }
@@ -1358,6 +1372,69 @@ fun DropdownField(
 }
 
 
+
+
+@Composable
+private fun FarmNavIcon(symbol: String, index: Int, selected: Boolean) {
+    val colors = listOf(
+        Color(0xFF187A45), Color(0xFF2878C8), Color(0xFFDA8A24),
+        Color(0xFF6D8E32), Color(0xFF7655B5)
+    )
+    val tint = colors.getOrElse(index) { Color(0xFF187A45) }
+    Box(
+        modifier = Modifier
+            .size(34.dp)
+            .background(tint.copy(alpha = if (selected) 0.20f else 0.09f), CircleShape),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(symbol, color = tint, style = MaterialTheme.typography.titleMedium)
+    }
+}
+
+@Composable
+private fun SmartSectionsHome(onSelect: (String) -> Unit) {
+    val sections = listOf(
+        Triple("التغذية الذكية", "🌾", Color(0xFF39834A)),
+        Triple("برنامج التطعيمات", "💉", Color(0xFF2477C8)),
+        Triple("الصحة والتناسل", "✚", Color(0xFFD45A58)),
+        Triple("الوزن والنمو", "⚖", Color(0xFFB87928)),
+        Triple("المواعيد والتنبيهات", "🔔", Color(0xFF7955B5)),
+        Triple("المالية والتقارير", "دج", Color(0xFF168C88))
+    )
+    Column(
+        modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        Text("إدارة المزرعة", style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.primary)
+        Text("اختر القسم لفتح صفحة مستقلة ومنظمة.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        sections.chunked(2).forEach { rowItems ->
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
+                rowItems.forEach { item ->
+                    Card(
+                        modifier = Modifier.weight(1f).clickable { onSelect(item.first) },
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier.fillMaxWidth().padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier.size(52.dp).background(item.third.copy(alpha = 0.13f), CircleShape),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(item.second, color = item.third, style = MaterialTheme.typography.headlineSmall)
+                            }
+                            Text(item.first, style = MaterialTheme.typography.titleMedium)
+                            Text("فتح القسم  ›", color = item.third, style = MaterialTheme.typography.labelMedium)
+                        }
+                    }
+                }
+                if (rowItems.size == 1) Spacer(Modifier.weight(1f))
+            }
+        }
+    }
+}
 
 @Composable
 fun SmartFarmPanel(
