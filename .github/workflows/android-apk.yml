@@ -140,9 +140,23 @@ jobs:
       - name: Build APK
         run: gradle --no-daemon :app:assembleDebug
 
+      - name: Verify standalone package and isolated database
+        run: |
+          set -e
+          APK="app/build/outputs/apk/debug/app-debug.apk"
+          ACTUAL_PACKAGE="$(apkanalyzer manifest application-id "$APK")"
+          EXPECTED_PACKAGE="dz.murabbi.alghanm.calendar2026"
+          if [ "$ACTUAL_PACKAGE" != "$EXPECTED_PACKAGE" ]; then
+            echo "ERROR: APK package is $ACTUAL_PACKAGE, expected $EXPECTED_PACKAGE"
+            exit 1
+          fi
+          grep -q '"murabbi_calendar_independent2026.db"' app/src/main/java/dz/murabbi/alghanm/data/FarmDatabase.kt
+          echo "VERIFIED APK PACKAGE: $ACTUAL_PACKAGE"
+          echo "VERIFIED DATABASE: murabbi_calendar_independent2026.db"
+
       - uses: actions/upload-artifact@v4
         with:
-          name: MurabbiAlghanm-Professional-Independent-APK
+          name: Mqane-Calendar-Standalone-APK
           path: app/build/outputs/apk/debug/app-debug.apk
 
 # Rebuild the professional sheep-icon test APK
