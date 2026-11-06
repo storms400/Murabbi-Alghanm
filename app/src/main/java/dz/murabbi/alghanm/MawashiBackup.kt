@@ -154,20 +154,22 @@ object MawashiBackup {
         }
     }
 
-    private fun publishPhoto(context: Context, tag: String, file: File): Uri? = runCatching {
-        val values = ContentValues().apply {
-            put(MediaStore.Images.Media.DISPLAY_NAME, "Mawashi-$tag.jpg")
-            put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg")
-            if (Build.VERSION.SDK_INT >= 29)
-                put(MediaStore.Images.Media.RELATIVE_PATH, Environment.DIRECTORY_PICTURES + "/Mawashi")
-        }
-        val uri = context.contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
-            ?: return null
-        context.contentResolver.openOutputStream(uri, "w")?.use { output ->
-            file.inputStream().buffered().use { it.copyTo(output) }
-        } ?: return null
-        uri
-    }.getOrNull()
+    private fun publishPhoto(context: Context, tag: String, file: File): Uri? {
+        return runCatching {
+            val values = ContentValues().apply {
+                put(MediaStore.Images.Media.DISPLAY_NAME, "Mawashi-$tag.jpg")
+                put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg")
+                if (Build.VERSION.SDK_INT >= 29)
+                    put(MediaStore.Images.Media.RELATIVE_PATH, Environment.DIRECTORY_PICTURES + "/Mawashi")
+            }
+            val uri = context.contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
+                ?: return@runCatching null
+            val output = context.contentResolver.openOutputStream(uri, "w")
+                ?: return@runCatching null
+            output.use { stream -> file.inputStream().buffered().use { it.copyTo(stream) } }
+            uri
+        }.getOrNull()
+    }
 
     private fun encrypt(plain: ByteArray, password: String): ByteArray {
         val salt = ByteArray(16).also(java.security.SecureRandom()::nextBytes)
