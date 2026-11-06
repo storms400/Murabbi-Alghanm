@@ -1356,7 +1356,7 @@ fun SmartFarmPanel(
     fun csv(value: String) = "\"" + value.replace("\"", "\"\"").replace("\n", " ") + "\""
     val exportText = buildString {
         appendLine("النوع,المعرف,التاريخ,التفاصيل")
-        animals.forEach { appendLine("حيوان,${csv(it.tag)},,${csv("${it.sex} - ${it.category} - ${it.weightKg} كغ")}") }
+        animals.forEach { appendLine("حيوان,${csv(it.tag)},${csv(it.birthDate)},${csv("${it.sex} - ${it.category} - ${it.weightKg} كغ - السلالة: ${it.breed} - الأم: ${it.motherTag} - الأب: ${it.fatherTag} - الصورة: ${it.photoUri}")}") }
         purchases.forEach { appendLine("شراء علف,${csv(it.feedName)},${csv(it.purchaseDate)},${csv("${it.quantityKg} كغ - ${it.totalPriceDzd ?: 0.0} دج")}") }
         consumptions.forEach { appendLine("استهلاك,${csv(it.feedName)},${csv(it.consumptionDate)},${csv("${it.quantityKg} كغ - ${it.animalCategory}")}") }
         tasks.forEach { appendLine("مهمة,${csv(it.taskType)},${csv(it.taskDate)},${csv(it.notes)}") }
@@ -1379,6 +1379,10 @@ fun SmartFarmPanel(
                 "الوزن والنمو" to "⚖️",
                 "المواعيد والتنبيهات" to "📅",
                 "المالية والتقارير" to "💰",
+                "شجرة النسب" to "🌳",
+                "النفوق والعزل" to "🛡️",
+                "إدارة المرعى" to "📍",
+                "النسخ الاحتياطي" to "💾",
                 "الرعاية اليومية" to "🧹"
             )
             sections.chunked(2).forEach { pair ->
@@ -1449,7 +1453,7 @@ fun SmartFarmPanel(
                 Text("سجل صحي وتناسلي موحد", style = MaterialTheme.typography.titleMedium)
                 DropdownField("الحيوان", targetTag, listOf("عام") + animals.map { it.tag }, { targetTag = it })
                 DropdownField("نوع الحدث", eventType,
-                    listOf("تلقيح", "تطعيم", "علاج", "فحص بيطري", "ولادة", "فطام", "بيع", "مصروف"),
+                    listOf("تلقيح", "فحص حمل", "تطعيم", "علاج", "فحص بيطري", "ولادة", "فطام", "نفوق", "عزل", "نقل إلى مرعى", "بيع", "مصروف"),
                     { eventType = it })
                 OutlinedTextField(eventDate, { eventDate = it }, label = { Text("التاريخ (YYYY-MM-DD)") }, modifier = Modifier.fillMaxWidth())
                 if (eventType == "بيع" || eventType == "مصروف") {
@@ -1559,6 +1563,72 @@ fun SmartFarmPanel(
                     )
                     HorizontalDivider()
                 }
+            }
+            "شجرة النسب" -> {
+                Text("شجرة نسب الحيوان", style = MaterialTheme.typography.titleMedium)
+                DropdownField("اختر الحيوان", targetTag, animals.map { it.tag }, { targetTag = it })
+                val selected = animals.firstOrNull { it.tag == targetTag }
+                if (selected == null) {
+                    Text("أضف حيوانات إلى القطيع أولاً.")
+                } else {
+                    SummaryCard("الأب", selected.fatherTag.ifBlank { "غير مسجل" })
+                    SummaryCard("الأم", selected.motherTag.ifBlank { "غير مسجلة" })
+                    Text("الأبناء المسجلون", style = MaterialTheme.typography.titleSmall)
+                    val offspring = animals.filter { it.motherTag == selected.tag || it.fatherTag == selected.tag }
+                    if (offspring.isEmpty()) Text("لا توجد أبناء مرتبطة بهذا الحيوان بعد.")
+                    offspring.forEach { child ->
+                        ListItem(headlineContent = { Text(child.tag) }, supportingContent = { Text("${child.sex} • ${child.category} • ${child.breed.ifBlank { "سلالة غير محددة" }}") })
+                    }
+                    Text("للحصول على شجرة دقيقة، أدخل رقم الأب والأم في بطاقة كل مولود.", style = MaterialTheme.typography.bodySmall)
+                }
+            }
+            "النفوق والعزل" -> {
+                Text("سجل النفوق والعزل الصحي", style = MaterialTheme.typography.titleMedium)
+                Text("سجّل الحالة فوراً مع التاريخ والسبب، واعزل الحيوان المشتبه به واطلب الطبيب البيطري عند الحاجة.", style = MaterialTheme.typography.bodySmall)
+                DropdownField("الحيوان", targetTag, listOf("عام") + animals.map { it.tag }, { targetTag = it })
+                DropdownField("نوع الحالة", eventType, listOf("نفوق", "عزل", "تعافي بعد عزل"), { eventType = it })
+                OutlinedTextField(eventDate, { eventDate = it }, label = { Text("التاريخ (YYYY-MM-DD)") }, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(eventNotes, { eventNotes = it }, label = { Text("السبب والأعراض والإجراء المتخذ") }, modifier = Modifier.fillMaxWidth())
+                Button(enabled = !saving, onClick = {
+                    if (runCatching { LocalDate.parse(eventDate) }.isFailure || eventNotes.isBlank()) message = "أدخل تاريخاً صحيحاً وتفاصيل الحالة."
+                    else { saving = true; onAddEvent(targetTag, eventType, eventDate, eventNotes) { ok -> saving = false; message = if (ok) "تم حفظ الحالة في السجل." else "تعذر الحفظ."; if (ok) eventNotes = "" } }
+                }, modifier = Modifier.fillMaxWidth()) { Text("حفظ الحالة") }
+                if (message.isNotBlank()) Text(message)
+                val cases = events.filter { it.eventType in listOf("نفوق", "عزل", "تعافي بعد عزل") }.sortedByDescending { it.eventDate }
+                SummaryCard("حالات النفوق المسجلة", cases.count { it.eventType == "نفوق" }.toString())
+                SummaryCard("حالات العزل المسجلة", cases.count { it.eventType == "عزل" }.toString())
+                cases.take(20).forEach { e -> ListItem(headlineContent = { Text("${e.eventType} • ${e.animalTag}") }, supportingContent = { Text("${e.eventDate} — ${e.notes}") }) }
+            }
+            "إدارة المرعى" -> {
+                Text("متابعة المراعي والحظائر", style = MaterialTheme.typography.titleMedium)
+                DropdownField("الحيوان أو المجموعة", targetTag, listOf("عام") + animals.map { it.tag }, { targetTag = it })
+                OutlinedTextField(eventDate, { eventDate = it }, label = { Text("تاريخ الانتقال أو المعاينة") }, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(eventNotes, { eventNotes = it }, label = { Text("اسم المرعى أو الحظيرة، الموقع، حالة الماء والعشب") }, modifier = Modifier.fillMaxWidth())
+                Button(enabled = !saving, onClick = {
+                    if (runCatching { LocalDate.parse(eventDate) }.isFailure || eventNotes.isBlank()) message = "أدخل التاريخ واسم الموقع أو تفاصيله."
+                    else { saving = true; onAddEvent(targetTag, "موقع المرعى", eventDate, eventNotes) { ok -> saving = false; message = if (ok) "تم تسجيل حركة المرعى." else "تعذر الحفظ."; if (ok) eventNotes = "" } }
+                }, modifier = Modifier.fillMaxWidth()) { Text("حفظ سجل المرعى") }
+                if (message.isNotBlank()) Text(message)
+                events.filter { it.eventType == "موقع المرعى" }.sortedByDescending { it.eventDate }.take(20).forEach { e ->
+                    ListItem(headlineContent = { Text(e.animalTag) }, supportingContent = { Text("${e.eventDate} — ${e.notes}") })
+                    HorizontalDivider()
+                }
+            }
+            "النسخ الاحتياطي" -> {
+                Text("تصدير نسخة من سجلات المزرعة", style = MaterialTheme.typography.titleMedium)
+                Text("يمكنك حفظ ملف CSV في الهاتف أو إرساله إلى بريدك أو مساحة تخزين خارجية. احتفظ بنسخ دورية، ولا تحذف التطبيق قبل التأكد من حفظ الملف.", style = MaterialTheme.typography.bodyMedium)
+                SummaryCard("الحيوانات", animals.size.toString())
+                SummaryCard("الأحداث الصحية والتناسلية", events.size.toString())
+                SummaryCard("المواعيد والمهام", tasks.size.toString())
+                Button(onClick = {
+                    val intent = Intent(Intent.ACTION_SEND).apply {
+                        type = "text/csv"
+                        putExtra(Intent.EXTRA_SUBJECT, "نسخة احتياطية من سجلات مربي الغنم")
+                        putExtra(Intent.EXTRA_TEXT, exportText)
+                    }
+                    context.startActivity(Intent.createChooser(intent, "حفظ أو إرسال نسخة السجلات"))
+                }, modifier = Modifier.fillMaxWidth()) { Text("تصدير نسخة CSV") }
+                Text("يشمل الملف بيانات الحيوانات الأساسية والنسب والمشتريات والاستهلاك والمهام والأحداث المسجلة. الصور نفسها لا تُضمّن داخل CSV؛ يتم الاحتفاظ بمراجعها فقط.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             "الرعاية اليومية" -> CareScreen(
                 tasks = tasks,
