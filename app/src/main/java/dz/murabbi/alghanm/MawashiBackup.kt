@@ -50,6 +50,7 @@ object MawashiBackup {
     suspend fun exportEncrypted(context: Context, dao: FarmDao, destination: Uri, password: String) =
         withContext(Dispatchers.IO) {
             require(password.length >= 12) { "استخدم كلمة مرور من 12 محرفاً على الأقل." }
+            val animals = dao.allAnimalsOnce()
             val db = FarmDatabase.get(context)
             db.openHelper.writableDatabase.query("PRAGMA wal_checkpoint(FULL)").use { }
             FarmDatabase.closeInstance()
@@ -67,12 +68,12 @@ object MawashiBackup {
                     raw.write(iv)
                     val cipher = Cipher.getInstance("AES/GCM/NoPadding")
                     cipher.init(Cipher.ENCRYPT_MODE, deriveKey(password, salt), GCMParameterSpec(128, iv))
-                    CipherOutputStream(BufferedOutputStream(raw), cipher).use { encrypted ->
-                        ZipOutputStream(encrypted).use { zip ->
+                    val encrypted = CipherOutputStream(BufferedOutputStream(raw), cipher)
+                    ZipOutputStream(encrypted).use { zip ->
                             zip.putNextEntry(ZipEntry("farm.db"))
                             databaseFile.inputStream().buffered().use { it.copyBoundedTo(zip, MAX_BACKUP_BYTES) }
                             zip.closeEntry()
-                            dao.allAnimalsOnce().filter { it.photoUri.isNotBlank() }.forEach { animal ->
+                            animals.filter { it.photoUri.isNotBlank() }.forEach { animal ->
                                 val uri = Uri.parse(animal.photoUri)
                                 val mime = context.contentResolver.getType(uri)
                                     ?: error("تعذر تحديد صيغة صورة الحيوان ${animal.tag}.")
@@ -140,7 +141,7 @@ object MawashiBackup {
                                 require(target.parentFile == photoDir) { "مسار صورة غير آمن." }
                                 target
                             }
-                            else -> null
+                            else -> error("عنصر غير معروف داخل النسخة الاحتياطية: ${entry.name}")
                         }
                         if (output != null) {
                             output.outputStream().buffered().use { target ->
