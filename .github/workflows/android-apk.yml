@@ -144,7 +144,12 @@ jobs:
         run: |
           set -e
           APK="app/build/outputs/apk/debug/app-debug.apk"
-          ACTUAL_PACKAGE="$(apkanalyzer manifest application-id "$APK")"
+          AAPT="$(find "$ANDROID_HOME/build-tools" -type f -name aapt | sort -V | tail -n 1)"
+          if [ -z "$AAPT" ]; then
+            echo "ERROR: Android build-tools aapt was not found"
+            exit 1
+          fi
+          ACTUAL_PACKAGE="$("$AAPT" dump badging "$APK" | sed -n "s/^package: name='\\([^']*\\)'.*/\\1/p" | head -n 1)"
           EXPECTED_PACKAGE="dz.murabbi.alghanm.calendar2026"
           if [ "$ACTUAL_PACKAGE" != "$EXPECTED_PACKAGE" ]; then
             echo "ERROR: APK package is $ACTUAL_PACKAGE, expected $EXPECTED_PACKAGE"
