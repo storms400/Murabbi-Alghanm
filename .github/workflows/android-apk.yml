@@ -121,11 +121,11 @@ jobs:
           p = Path("app/build.gradle.kts")
           s = p.read_text()
           branch = os.environ.get("GITHUB_REF_NAME")
-          expected = ("dz.murabbi.alghanm.mawashi.prov320261106"
+          expected = ("dz.murabbi.alghanm.mawashi.prov420261106"
                       if branch == "mawashi-pro-v4-independent-20261106"
                       else "dz.murabbi.alghanm.mawashi.prov320261106"
                       if branch == "mawashi-pro-v3-independent-20261106"
-                      else "dz.murabbi.alghanm.mawashi.prov320261106"
+                      else "dz.murabbi.alghanm.mawashi.pro20261106"
                       if branch == "mawashi-pro-vaccination-standalone-20261106"
                       else "dz.murabbi.alghanm.mawashi20261106"
                       if branch == "mawashi-vaccination-standalone-20261106"
@@ -158,7 +158,7 @@ jobs:
           s = Path("app/build.gradle.kts").read_text()
           m = re.search(r'applicationId\s*=\s*"([^"]+)"', s)
           branch = os.environ.get("GITHUB_REF_NAME")
-          expected = ("dz.murabbi.alghanm.mawashi.prov320261106"
+          expected = ("dz.murabbi.alghanm.mawashi.prov420261106"
                       if branch == "mawashi-pro-v4-independent-20261106"
                       else "dz.murabbi.alghanm.mawashi.prov320261106"
                       if branch == "mawashi-pro-v3-independent-20261106"
