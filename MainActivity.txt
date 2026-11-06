@@ -364,7 +364,7 @@ class FarmViewModel(private val dao: FarmDao) : ViewModel() {
     }
 
     fun addTreatment(record: TreatmentRecord, onResult: (Boolean) -> Unit) {
-        viewModelScope.launch { onResult(runCatching { dao.addTreatment(record); dao.addAuditEntry(AuditEntry(action = "إضافة", recordType = "علاج", details = "${record.animalTag}: ${record.diagnosis}")) }.isSuccess) }
+        viewModelScope.launch { onResult(runCatching { dao.saveTreatmentWithStock(record) }.getOrDefault(false)) }
     }
     fun addReproduction(record: ReproductionRecord, onResult: (Boolean) -> Unit) {
         viewModelScope.launch { onResult(runCatching { dao.addReproduction(record); dao.addAuditEntry(AuditEntry(action = "إضافة", recordType = "تكاثر", details = "${record.femaleTag}: ${record.eventType}")) }.isSuccess) }
@@ -1740,6 +1740,11 @@ fun SmartFarmPanel(
     var treatmentMedicine by remember { mutableStateOf("") }
     var treatmentDose by remember { mutableStateOf("") }
     var treatmentWithdrawal by remember { mutableStateOf("") }
+    var treatmentQuantity by remember { mutableStateOf("0") }
+    var financeType by remember { mutableStateOf("مصروف") }
+    var financeCategory by remember { mutableStateOf("أدوية") }
+    var financeAmount by remember { mutableStateOf("") }
+    var financeDescription by remember { mutableStateOf("") }
     var medicineName by remember { mutableStateOf("") }
     var medicineQuantity by remember { mutableStateOf("") }
     var medicineExpiry by remember { mutableStateOf(today.plusMonths(6).toString()) }
@@ -2103,15 +2108,16 @@ fun SmartFarmPanel(
                 OutlinedTextField(treatmentMedicine, { treatmentMedicine = it }, label = { Text("اسم الدواء") }, modifier = Modifier.fillMaxWidth())
                 OutlinedTextField(treatmentDose, { treatmentDose = it }, label = { Text("الجرعة حسب الطبيب") }, modifier = Modifier.fillMaxWidth())
                 OutlinedTextField(treatmentWithdrawal, { treatmentWithdrawal = it }, label = { Text("آخر يوم لفترة سحب الدواء") }, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(treatmentQuantity, { treatmentQuantity = it }, label = { Text("كمية الدواء المستهلكة من المخزون (0 = غير محدد)") }, modifier = Modifier.fillMaxWidth())
                 Button(enabled = !saving && targetTag.isNotBlank() && treatmentDiagnosis.isNotBlank() && treatmentMedicine.isNotBlank(),
                     onClick = {
                         saving = true
                         onAddTreatment(TreatmentRecord(animalTag = targetTag, diagnosis = treatmentDiagnosis.trim(),
                             medicineName = treatmentMedicine.trim(), dose = treatmentDose.trim(),
-                            startDate = today.toString(), withdrawalUntil = treatmentWithdrawal.trim())) { ok ->
+                            startDate = today.toString(), withdrawalUntil = treatmentWithdrawal.trim(), quantityUsed = treatmentQuantity.replace(',', '.').toDoubleOrNull() ?: 0.0)) { ok ->
                             saving = false
                             message = if (ok) "تم حفظ العلاج وسجل التدقيق." else "تعذر حفظ العلاج."
-                            if (ok) { treatmentDiagnosis = ""; treatmentMedicine = ""; treatmentDose = ""; treatmentWithdrawal = "" }
+                            if (ok) { treatmentDiagnosis = ""; treatmentMedicine = ""; treatmentDose = ""; treatmentWithdrawal = ""; treatmentQuantity = "0" }
                         }
                     }, modifier = Modifier.fillMaxWidth()) { Text("حفظ سجل العلاج") }
                 HorizontalDivider()
@@ -2133,7 +2139,26 @@ fun SmartFarmPanel(
                         }
                     }, modifier = Modifier.fillMaxWidth()) { Text("إضافة إلى المخزون") }
                 if (message.isNotBlank()) Text(message)
-                Text("فترة السحب تُسجل حسب الطبيب ونشرة الدواء، ولا تُحسب تلقائياً.")
+                Text("فترة السحب تُسجل حسب الطبيب ونشرة الدواء؛ يرفض النظام خصم كمية من مخزون غير كافٍ أو منتهي الصلاحية.")
+                Text("سجلات العلاج", style = MaterialTheme.typography.titleMedium)
+                if (treatments.isEmpty()) Text("لا توجد علاجات مسجلة.")
+                treatments.forEach { item ->
+                    ListItem(headlineContent = { Text("${item.animalTag} • ${item.diagnosis}") },
+                        supportingContent = { Text("${item.medicineName} • ${item.startDate} • سحب حتى: ${item.withdrawalUntil.ifBlank { "غير محدد" }}") },
+                        trailingContent = { TextButton(onClick = { onDeleteTreatment(item.id) { message = if (it) "تم حذف السجل." else "تعذر الحذف." } }) { Text("حذف") } })
+                    HorizontalDivider()
+                }
+                Text("مخزون الأدوية والتنبيهات", style = MaterialTheme.typography.titleMedium)
+                medicineStock.forEach { item ->
+                    val expired = runCatching { LocalDate.parse(item.expiryDate).isBefore(today) }.getOrDefault(false)
+                    val nearExpiry = runCatching { ChronoUnit.DAYS.between(today, LocalDate.parse(item.expiryDate)) in 0..30 }.getOrDefault(false)
+                    ListItem(headlineContent = { Text(item.medicineName + " • " + item.quantity + " " + item.unit) },
+                        supportingContent = { Text("الصلاحية: ${item.expiryDate} • " + when { expired -> "منتهي الصلاحية — ممنوع الاستخدام"; nearExpiry -> "قريب الانتهاء"; item.quantity <= 1 -> "مخزون منخفض"; else -> "متاح" }) },
+                        trailingContent = { TextButton(onClick = { onDeleteMedicineStock(item.id) { message = if (it) "تم حذف الدواء." else "تعذر الحذف." } }) { Text("حذف") } })
+                    HorizontalDivider()
+                }
+                Text("سجل التدقيق", style = MaterialTheme.typography.titleMedium)
+                auditEntries.take(20).forEach { entry -> Text("${entry.action} • ${entry.recordType} • ${entry.details}", style = MaterialTheme.typography.bodySmall) }
             }
             "التكاثر والولادات" -> {
                 Text("سجل التلقيح والحمل والولادات", style = MaterialTheme.typography.titleMedium)
@@ -2159,6 +2184,36 @@ fun SmartFarmPanel(
                             }
                         }
                     }, modifier = Modifier.fillMaxWidth()) { Text("حفظ حدث التكاثر") }
+                if (message.isNotBlank()) Text(message)
+                Text("سجل التلقيح والولادات", style = MaterialTheme.typography.titleMedium)
+                reproductionRecords.forEach { item ->
+                    ListItem(headlineContent = { Text("${item.femaleTag} • ${item.eventType}") },
+                        supportingContent = { Text("التاريخ: ${item.eventDate} • المتوقع: ${item.expectedDate.ifBlank { "غير محدد" }} • مواليد: ${item.offspringCount}") },
+                        trailingContent = { TextButton(onClick = { onDeleteReproduction(item.id) { message = if (it) "تم حذف الحدث." else "تعذر الحذف." } }) { Text("حذف") } })
+                }
+            }
+            "المالية والتقارير" -> {
+                Text("دفتر مالي مستقل", style = MaterialTheme.typography.titleMedium)
+                DropdownField("نوع الحركة", financeType, listOf("مصروف", "إيراد"), { financeType = it })
+                DropdownField("التصنيف", financeCategory, listOf("أعلاف", "أدوية", "بيطرة", "شراء حيوانات", "بيع حيوانات", "عمالة", "نقل", "أخرى"), { financeCategory = it })
+                OutlinedTextField(financeAmount, { financeAmount = it }, label = { Text("المبلغ بالدينار الجزائري") }, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(financeDescription, { financeDescription = it }, label = { Text("التفاصيل") }, modifier = Modifier.fillMaxWidth())
+                Button(enabled = !saving && (financeAmount.replace(',', '.').toDoubleOrNull() ?: 0.0) > 0,
+                    onClick = {
+                        val amount = financeAmount.replace(',', '.').toDoubleOrNull() ?: 0.0
+                        saving = true
+                        onAddFinance(FinanceEntry(entryType = financeType, category = financeCategory, amountDzd = amount, entryDate = today.toString(), description = financeDescription.trim())) { ok ->
+                            saving = false
+                            message = if (ok) "تم تسجيل الحركة المالية." else "تعذر الحفظ."
+                            if (ok) { financeAmount = ""; financeDescription = "" }
+                        }
+                    }, modifier = Modifier.fillMaxWidth()) { Text("حفظ الحركة المالية") }
+                val income = financeEntries.filter { it.entryType == "إيراد" }.sumOf { it.amountDzd }
+                val expense = financeEntries.filter { it.entryType == "مصروف" }.sumOf { it.amountDzd }
+                SummaryCard("إجمالي الإيرادات", "${"%.0f".format(Locale.US, income)} دج")
+                SummaryCard("إجمالي المصروفات", "${"%.0f".format(Locale.US, expense)} دج")
+                SummaryCard("الصافي المسجل", "${"%.0f".format(Locale.US, income-expense)} دج")
+                financeEntries.forEach { item -> ListItem(headlineContent = { Text("${item.entryType} • ${item.category}") }, supportingContent = { Text("${item.entryDate} • ${item.description}") }, trailingContent = { Text("${"%.0f".format(Locale.US, item.amountDzd)} دج") }) }
                 if (message.isNotBlank()) Text(message)
             }
             else -> {
