@@ -186,7 +186,11 @@ jobs:
           fi
           grep -q '"mawashi_pro_standalone20261106.db"' app/src/main/java/dz/murabbi/alghanm/data/FarmDatabase.kt
           echo "VERIFIED APK PACKAGE: $ACTUAL_PACKAGE"
-          echo "VERIFIED DATABASE: mawashi_standalone20261106.db"
+          echo "VERIFIED DATABASE: mawashi_pro_standalone20261106.db"
+          grep -q "CREATE TABLE IF NOT EXISTS vaccine_dose_records" FarmDatabase.txt
+          grep -q "CREATE TABLE IF NOT EXISTS vaccine_campaigns" FarmDatabase.txt
+          grep -q "CREATE TABLE IF NOT EXISTS animal_care_status" FarmDatabase.txt
+          echo "VERIFIED STRUCTURED VACCINATION, CAMPAIGN AND CARE TABLES"
 
       - uses: actions/upload-artifact@v4
         with:
