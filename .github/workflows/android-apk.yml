@@ -17,6 +17,7 @@ name: Build Android APK
       - "mqane-inspired-interface"
       - "mqane-comprehensive-independent"
       - "mqane-vaccination-independent-2026"
+      - "mqane-professional-pages-independent-2026"
 
 jobs:
   build:
@@ -93,7 +94,7 @@ jobs:
 
           s, count = re.subn(
               r'(?m)^(\s*applicationId\s*=\s*)["\'][^"\']+["\']',
-              r'\1"dz.murabbi.alghanm.vaccination2026"',
+              r'\1"dz.murabbi.alghanm.professional2026"',
               s
           )
 
@@ -101,7 +102,7 @@ jobs:
               raise SystemExit("ERROR: Could not set applicationId exactly once")
 
           p.write_text(s)
-          print("TEST APPLICATION ID: dz.murabbi.alghanm.vaccination2026")
+          print("TEST APPLICATION ID: dz.murabbi.alghanm.professional2026")
           PY
 
           grep -n applicationId app/build.gradle.kts
@@ -112,7 +113,7 @@ jobs:
           import re
           s = Path("app/build.gradle.kts").read_text()
           m = re.search(r'applicationId\s*=\s*"([^"]+)"', s)
-          expected = "dz.murabbi.alghanm.vaccination2026"
+          expected = "dz.murabbi.alghanm.professional2026"
           if not m or m.group(1) != expected:
               raise SystemExit(f"Package ID verification failed: {m.group(1) if m else 'missing'}")
           print(f"VERIFIED ISOLATED PACKAGE: {m.group(1)}")
@@ -123,7 +124,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: MurabbiAlghanm-Comprehensive-Independent-APK
+          name: MurabbiAlghanm-Professional-Independent-APK
           path: app/build/outputs/apk/debug/app-debug.apk
 
 # Rebuild the professional sheep-icon test APK
