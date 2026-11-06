@@ -1146,20 +1146,6 @@ fun DropdownField(
 
 
 
-import android.content.Intent
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.unit.dp
-import dz.murabbi.alghanm.data.*
-import java.time.LocalDate
-import java.time.temporal.ChronoUnit
-import java.util.Locale
-
 @Composable
 fun SmartFarmPanel(
     animals: List<Animal>,
