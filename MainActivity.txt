@@ -90,6 +90,23 @@ private fun scheduleVaccineAlarm(context: Context, tag: String, key: String, tit
     } catch (_: SecurityException) { alarm.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, millis, pending) }
 }
 
+class VaccineBootReceiver : BroadcastReceiver() {
+    override fun onReceive(context: Context, intent: Intent) {
+        if (intent.action != Intent.ACTION_BOOT_COMPLETED && intent.action != Intent.ACTION_MY_PACKAGE_REPLACED) return
+        val pending = goAsync()
+        Thread {
+            try {
+                kotlinx.coroutines.runBlocking {
+                    FarmDatabase.get(context).farmDao().vaccineRecords().first().forEach { record ->
+                        val due = runCatching { LocalDate.parse(record.nextDueDate) }.getOrNull() ?: return@forEach
+                        scheduleVaccineAlarm(context, record.animalTag, record.vaccineKey + "-next", record.vaccineName, due, due, "موعد الجرعة التالية المسجل")
+                    }
+                }
+            } finally { pending.finish() }
+        }.start()
+    }
+}
+
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -1967,7 +1984,7 @@ fun SmartFarmPanel(
                     onClick = {
                         val intent = Intent(Intent.ACTION_SEND).apply {
                             type = "text/csv"
-                            putExtra(Intent.EXTRA_SUBJECT, "نسخة بيانات مربي الغنم")
+                            putExtra(Intent.EXTRA_SUBJECT, "نسخة بيانات مواشي")
                             putExtra(Intent.EXTRA_TEXT, exportText)
                         }
                         context.startActivity(Intent.createChooser(intent, "تصدير بيانات المزرعة"))
