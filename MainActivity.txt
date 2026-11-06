@@ -1531,6 +1531,7 @@ private fun SmartSectionsHome(onSelect: (String) -> Unit) {
     val sections = listOf(
         Triple("التغذية الذكية", "🌾", Color(0xFF39834A)),
         Triple("برنامج التطعيمات", "💉", Color(0xFF2477C8)),
+        Triple("حملات التلقيح الجزائرية", "🇩🇿", Color(0xFF168C88)),
         Triple("الصحة والتناسل", "✚", Color(0xFFD45A58)),
         Triple("الوزن والنمو", "⚖", Color(0xFFB87928)),
         Triple("المواعيد والتنبيهات", "🔔", Color(0xFF7955B5)),
@@ -1701,6 +1702,27 @@ fun SmartFarmPanel(
                     "الباستوريلا والجمرة الخبيثة والحمى الزرقاء: وفق تشخيص الخطر وتوجيه الطبيب.",
                     "لا يعطي التطبيق جرعات أو تعليمات حقن؛ اعتمد نشرة المنتج والطبيب البيطري."
                 ).forEach { Text("• " + it, style = MaterialTheme.typography.bodySmall) }
+                if (message.isNotBlank()) Text(message)
+            }
+            "حملات التلقيح الجزائرية" -> {
+                Text("متابعة حملات التلقيح الرسمية", style = MaterialTheme.typography.titleMedium)
+                Text("سجّل بيانات الحملة ومرجع الإعلان والفئة المستهدفة. لا تُعتبر المواعيد رسمية إلا بعد إدخالها من إعلان المصالح البيطرية.", style = MaterialTheme.typography.bodySmall)
+                OutlinedTextField(eventNotes, { eventNotes = it }, label = { Text("اسم الحملة والمرجع والشروط") }, modifier = Modifier.fillMaxWidth(), minLines = 2)
+                CalendarDateField(label = "تاريخ الحملة", value = eventDate, onDateSelected = { eventDate = it })
+                Button(enabled = !saving && eventNotes.isNotBlank(), onClick = {
+                    if (runCatching { LocalDate.parse(eventDate) }.isFailure) message = "أدخل تاريخاً صحيحاً."
+                    else {
+                        saving = true
+                        onAddEvent("عام", "حملة تلقيح", eventDate, "CAMPAIGN: " + eventNotes.trim()) { ok ->
+                            saving = false
+                            message = if (ok) "تم تسجيل الحملة." else "تعذر حفظ الحملة."
+                            if (ok) eventNotes = ""
+                        }
+                    }
+                }, modifier = Modifier.fillMaxWidth()) { Text("حفظ الحملة") }
+                events.filter { it.eventType == "حملة تلقيح" }.sortedByDescending { it.eventDate }.forEach {
+                    ListItem(headlineContent = { Text(it.notes) }, supportingContent = { Text(it.eventDate) })
+                }
                 if (message.isNotBlank()) Text(message)
             }
             "التغذية الذكية" -> {
