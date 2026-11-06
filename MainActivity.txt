@@ -2,6 +2,14 @@
 package dz.murabbi.alghanm
 
 import android.os.Bundle
+import java.time.ZoneId
+import java.time.LocalDateTime
+import androidx.core.app.NotificationManagerCompat
+import androidx.core.app.NotificationCompat
+import android.content.Context
+import android.content.BroadcastReceiver
+import android.app.PendingIntent
+import android.app.AlarmManager
 import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Build
@@ -1323,7 +1331,7 @@ fun SmartFarmPanel(
 ) {
     val context = LocalContext.current
     val today = LocalDate.now()
-    var section by remember { mutableStateOf("القائمة") }
+    var section by remember { mutableStateOf("التغذية الذكية") }
     var feedGroup by remember { mutableStateOf("القطيع كله") }
     var dailyPerHead by remember { mutableStateOf("") }
     var targetTag by remember(animals) { mutableStateOf(animals.firstOrNull()?.tag ?: "عام") }
@@ -1357,72 +1365,88 @@ fun SmartFarmPanel(
     val upcoming = tasks.mapNotNull { task ->
         val date = runCatching { LocalDate.parse(task.taskDate) }.getOrNull() ?: return@mapNotNull null
         val days = ChronoUnit.DAYS.between(today, date)
-        if (!task.completed && days <= 7L) task to days else null
+        if (!task.completed && days <= 7) task to days else null
     }.sortedBy { it.second }
 
     fun csv(value: String) = "\"" + value.replace("\"", "\"\"").replace("\n", " ") + "\""
     val exportText = buildString {
         appendLine("النوع,المعرف,التاريخ,التفاصيل")
-        animals.forEach { appendLine("حيوان,${csv(it.tag)},${csv(it.birthDate)},${csv("${it.sex} - ${it.category} - ${it.weightKg} كغ - السلالة: ${it.breed} - الأم: ${it.motherTag} - الأب: ${it.fatherTag} - الصورة: ${it.photoUri}")}") }
+        animals.forEach { appendLine("حيوان,${csv(it.tag)},,${csv("${it.sex} - ${it.category} - ${it.weightKg} كغ")}") }
         purchases.forEach { appendLine("شراء علف,${csv(it.feedName)},${csv(it.purchaseDate)},${csv("${it.quantityKg} كغ - ${it.totalPriceDzd ?: 0.0} دج")}") }
         consumptions.forEach { appendLine("استهلاك,${csv(it.feedName)},${csv(it.consumptionDate)},${csv("${it.quantityKg} كغ - ${it.animalCategory}")}") }
         tasks.forEach { appendLine("مهمة,${csv(it.taskType)},${csv(it.taskDate)},${csv(it.notes)}") }
         events.forEach { appendLine("حدث,${csv(it.animalTag)},${csv(it.eventDate)},${csv("${it.eventType} - ${it.notes}")}") }
     }
 
-    Column(
-        Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        if (section == "القائمة") {
-            Text("إدارة المزرعة", style = MaterialTheme.typography.headlineSmall,
-                color = MaterialTheme.colorScheme.primary)
-            Text("اختر الخدمة التي تريدها مباشرة.", style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant)
-            val sections = listOf(
-                "التغذية الذكية" to "🌾",
-                "المرشد العلمي" to "📘",
-                "الصحة والتناسل" to "🩺",
-                "الوزن والنمو" to "⚖️",
-                "المواعيد والتنبيهات" to "📅",
-                "المالية والتقارير" to "💰",
-                "شجرة النسب" to "🌳",
-                "النفوق والعزل" to "🛡️",
-                "إدارة المرعى" to "📍",
-                "النسخ الاحتياطي" to "💾",
-                "الرعاية اليومية" to "🧹"
-            )
-            sections.chunked(2).forEach { pair ->
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    pair.forEach { (name, emoji) ->
-                        Card(
-                            onClick = { section = name },
-                            modifier = Modifier.weight(1f),
-                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
-                        ) {
-                            Column(
-                                Modifier.fillMaxWidth().padding(14.dp),
-                                verticalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                Text(emoji, style = MaterialTheme.typography.headlineMedium)
-                                Text(name, style = MaterialTheme.typography.titleSmall,
-                                    color = MaterialTheme.colorScheme.primary)
-                            }
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Text("الإدارة الذكية للمزرعة", style = MaterialTheme.typography.titleLarge,
+            color = MaterialTheme.colorScheme.primary)
+        Text("أدوات إضافية مدمجة مع بيانات القطيع الحالية.", style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant)
+        DropdownField(
+            "القسم الذكي", section,
+            listOf("التغذية الذكية", "برنامج التطعيمات", "الصحة والتناسل", "الوزن والنمو", "المواعيد والتنبيهات", "المالية والتقارير"),
+            { section = it }
+        )
+
+        val vaccinePlan = remember(animals, events) {
+            animals.flatMap { animal ->
+                val birth = runCatching { LocalDate.parse(animal.birthDate) }.getOrNull()
+                if (birth == null) emptyList() else listOf(
+                    VaccinePlanItem(animal.tag, "clostridial-1", "التسمم المعوي والكزاز — الجرعة الأولى", birth.plusDays(45),
+                        "توقيت استرشادي بعمر 6–8 أسابيع؛ يتغير حسب مناعة الأم ونشرة اللقاح."),
+                    VaccinePlanItem(animal.tag, "clostridial-2", "التسمم المعوي والكزاز — الجرعة الثانية", birth.plusDays(69),
+                        "بعد 3–4 أسابيع من الأولى، بشرط مطابقة الفاصل لنشرة المنتج."),
+                    VaccinePlanItem(animal.tag, "ppr", "طاعون المجترات الصغيرة (PPR)", birth.plusDays(105),
+                        "يُراجع عند عمر 3–4 أشهر؛ التنفيذ حسب برنامج المصالح البيطرية ونوع اللقاح وتداخل مناعة الأم."),
+                    VaccinePlanItem(animal.tag, "pox-risk", "جدري الأغنام (عند وجود خطر)", birth.plusDays(120),
+                        "لا يُعد موعداً روتينياً عاماً؛ لا يُعطى إلا بتوجيه المصالح البيطرية أو الطبيب.")
+                )
+            }
+        }
+        fun vaccineRecorded(item: VaccinePlanItem) =
+            events.any { it.animalTag == item.animalTag && it.eventType == "تطعيم" && it.notes.contains("VAX:" + item.key) }
+        LaunchedEffect(vaccinePlan, events) {
+            vaccinePlan.filterNot { vaccineRecorded(it) }.forEach { item ->
+                scheduleVaccineAlarm(context, item.animalTag, item.key, item.title, item.dueDate, item.dueDate.minusDays(3), "تبقى 3 أيام")
+                scheduleVaccineAlarm(context, item.animalTag, item.key, item.title, item.dueDate, item.dueDate, "موعد التطعيم اليوم الساعة 08:00")
+            }
+        }
+        when (section) {
+            "برنامج التطعيمات" -> {
+                Text("برنامج التطعيمات المحسوب من تاريخ الميلاد", style = MaterialTheme.typography.titleMedium)
+                Text("يظهر جدول مستقل لكل حيوان. التنبيه قبل الموعد بثلاثة أيام ويوم الاستحقاق الساعة 08:00.", style = MaterialTheme.typography.bodySmall)
+                Text("المواعيد إرشادية وليست وصفة بيطرية؛ يجب مراجعة تلقيح الأم، الحالة الصحية، نشرة المنتج، وبرنامج الجزائر الرسمي قبل إعطاء أي لقاح.", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                val noBirth = animals.filter { runCatching { LocalDate.parse(it.birthDate) }.isFailure }
+                noBirth.forEach { Text("أضف تاريخ ميلاد الحيوان " + it.tag + " من بطاقة الحيوان لحساب جدوله.") }
+                vaccinePlan.sortedBy { it.dueDate }.forEach { item ->
+                    val done = vaccineRecorded(item)
+                    val days = ChronoUnit.DAYS.between(today, item.dueDate)
+                    Card {
+                        Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                            Text(item.animalTag + " • " + item.title, style = MaterialTheme.typography.titleSmall)
+                            Text("موعد محسوب: " + item.dueDate + " • " + if (done) "مسجل" else if (days < 0) "متأخر " + (-days) + " يوم" else if (days == 0L) "مستحق اليوم" else "بعد " + days + " يوم")
+                            Text(item.guidance, style = MaterialTheme.typography.bodySmall)
+                            if (!done) OutlinedButton(onClick = {
+                                saving = true
+                                onAddEvent(item.animalTag, "تطعيم", today.toString(),
+                                    "VAX:" + item.key + " | " + item.title + " | موعد الخطة: " + item.dueDate + " | أضف اسم المنتج ورقم الدفعة والجرعة المعطاة.") { ok ->
+                                    saving = false
+                                    message = if (ok) "تم تسجيل التطعيم." else "تعذر تسجيل التطعيم."
+                                }
+                            }, modifier = Modifier.fillMaxWidth()) { Text("تسجيل إعطاء اللقاح") }
                         }
                     }
-                    if (pair.size == 1) Spacer(Modifier.weight(1f))
                 }
+                Text("لقاحات مرتبطة بالخطر الوبائي أو القرار الرسمي — لا تُجدول تلقائياً", style = MaterialTheme.typography.titleSmall)
+                listOf(
+                    "الحمى القلاعية: حسب الحملة الرسمية الجزائرية.",
+                    "البروسيلا: حسب البرنامج الرسمي والقيود التنظيمية فقط.",
+                    "الباستوريلا والجمرة الخبيثة والحمى الزرقاء: وفق تشخيص الخطر وتوجيه الطبيب.",
+                    "لا يعطي التطبيق جرعات أو تعليمات حقن؛ اعتمد نشرة المنتج والطبيب البيطري."
+                ).forEach { Text("• " + it, style = MaterialTheme.typography.bodySmall) }
+                if (message.isNotBlank()) Text(message)
             }
-        } else {
-            OutlinedButton(onClick = { section = "القائمة" }) {
-                Text("← جميع أقسام الإدارة")
-            }
-            Text(section, style = MaterialTheme.typography.headlineSmall,
-                color = MaterialTheme.colorScheme.primary)
-        }
-
-        when (section) {
-            "المرشد العلمي" -> ScientificSheepGuide(animals = animals)
             "التغذية الذكية" -> {
                 Text("حاسبة الاحتياج اليومي", style = MaterialTheme.typography.titleMedium)
                 DropdownField("الفئة", feedGroup, listOf("القطيع كله", "نعاج", "فحول", "حملان"), { feedGroup = it })
@@ -1460,7 +1484,7 @@ fun SmartFarmPanel(
                 Text("سجل صحي وتناسلي موحد", style = MaterialTheme.typography.titleMedium)
                 DropdownField("الحيوان", targetTag, listOf("عام") + animals.map { it.tag }, { targetTag = it })
                 DropdownField("نوع الحدث", eventType,
-                    listOf("تلقيح", "فحص حمل", "تطعيم", "علاج", "فحص بيطري", "ولادة", "فطام", "نفوق", "عزل", "نقل إلى مرعى", "بيع", "مصروف"),
+                    listOf("تلقيح", "تطعيم", "علاج", "فحص بيطري", "ولادة", "فطام", "بيع", "مصروف"),
                     { eventType = it })
                 OutlinedTextField(eventDate, { eventDate = it }, label = { Text("التاريخ (YYYY-MM-DD)") }, modifier = Modifier.fillMaxWidth())
                 if (eventType == "بيع" || eventType == "مصروف") {
@@ -1571,79 +1595,7 @@ fun SmartFarmPanel(
                     HorizontalDivider()
                 }
             }
-            "شجرة النسب" -> {
-                Text("شجرة نسب الحيوان", style = MaterialTheme.typography.titleMedium)
-                DropdownField("اختر الحيوان", targetTag, animals.map { it.tag }, { targetTag = it })
-                val selected = animals.firstOrNull { it.tag == targetTag }
-                if (selected == null) {
-                    Text("أضف حيوانات إلى القطيع أولاً.")
-                } else {
-                    SummaryCard("الأب", selected.fatherTag.ifBlank { "غير مسجل" })
-                    SummaryCard("الأم", selected.motherTag.ifBlank { "غير مسجلة" })
-                    Text("الأبناء المسجلون", style = MaterialTheme.typography.titleSmall)
-                    val offspring = animals.filter { it.motherTag == selected.tag || it.fatherTag == selected.tag }
-                    if (offspring.isEmpty()) Text("لا توجد أبناء مرتبطة بهذا الحيوان بعد.")
-                    offspring.forEach { child ->
-                        ListItem(headlineContent = { Text(child.tag) }, supportingContent = { Text("${child.sex} • ${child.category} • ${child.breed.ifBlank { "سلالة غير محددة" }}") })
-                    }
-                    Text("للحصول على شجرة دقيقة، أدخل رقم الأب والأم في بطاقة كل مولود.", style = MaterialTheme.typography.bodySmall)
-                }
-            }
-            "النفوق والعزل" -> {
-                Text("سجل النفوق والعزل الصحي", style = MaterialTheme.typography.titleMedium)
-                Text("سجّل الحالة فوراً مع التاريخ والسبب، واعزل الحيوان المشتبه به واطلب الطبيب البيطري عند الحاجة.", style = MaterialTheme.typography.bodySmall)
-                DropdownField("الحيوان", targetTag, listOf("عام") + animals.map { it.tag }, { targetTag = it })
-                DropdownField("نوع الحالة", eventType, listOf("نفوق", "عزل", "تعافي بعد عزل"), { eventType = it })
-                OutlinedTextField(eventDate, { eventDate = it }, label = { Text("التاريخ (YYYY-MM-DD)") }, modifier = Modifier.fillMaxWidth())
-                OutlinedTextField(eventNotes, { eventNotes = it }, label = { Text("السبب والأعراض والإجراء المتخذ") }, modifier = Modifier.fillMaxWidth())
-                Button(enabled = !saving, onClick = {
-                    if (runCatching { LocalDate.parse(eventDate) }.isFailure || eventNotes.isBlank()) message = "أدخل تاريخاً صحيحاً وتفاصيل الحالة."
-                    else { saving = true; onAddEvent(targetTag, eventType, eventDate, eventNotes) { ok -> saving = false; message = if (ok) "تم حفظ الحالة في السجل." else "تعذر الحفظ."; if (ok) eventNotes = "" } }
-                }, modifier = Modifier.fillMaxWidth()) { Text("حفظ الحالة") }
-                if (message.isNotBlank()) Text(message)
-                val cases = events.filter { it.eventType in listOf("نفوق", "عزل", "تعافي بعد عزل") }.sortedByDescending { it.eventDate }
-                SummaryCard("حالات النفوق المسجلة", cases.count { it.eventType == "نفوق" }.toString())
-                SummaryCard("حالات العزل المسجلة", cases.count { it.eventType == "عزل" }.toString())
-                cases.take(20).forEach { e -> ListItem(headlineContent = { Text("${e.eventType} • ${e.animalTag}") }, supportingContent = { Text("${e.eventDate} — ${e.notes}") }) }
-            }
-            "إدارة المرعى" -> {
-                Text("متابعة المراعي والحظائر", style = MaterialTheme.typography.titleMedium)
-                DropdownField("الحيوان أو المجموعة", targetTag, listOf("عام") + animals.map { it.tag }, { targetTag = it })
-                OutlinedTextField(eventDate, { eventDate = it }, label = { Text("تاريخ الانتقال أو المعاينة") }, modifier = Modifier.fillMaxWidth())
-                OutlinedTextField(eventNotes, { eventNotes = it }, label = { Text("اسم المرعى أو الحظيرة، الموقع، حالة الماء والعشب") }, modifier = Modifier.fillMaxWidth())
-                Button(enabled = !saving, onClick = {
-                    if (runCatching { LocalDate.parse(eventDate) }.isFailure || eventNotes.isBlank()) message = "أدخل التاريخ واسم الموقع أو تفاصيله."
-                    else { saving = true; onAddEvent(targetTag, "موقع المرعى", eventDate, eventNotes) { ok -> saving = false; message = if (ok) "تم تسجيل حركة المرعى." else "تعذر الحفظ."; if (ok) eventNotes = "" } }
-                }, modifier = Modifier.fillMaxWidth()) { Text("حفظ سجل المرعى") }
-                if (message.isNotBlank()) Text(message)
-                events.filter { it.eventType == "موقع المرعى" }.sortedByDescending { it.eventDate }.take(20).forEach { e ->
-                    ListItem(headlineContent = { Text(e.animalTag) }, supportingContent = { Text("${e.eventDate} — ${e.notes}") })
-                    HorizontalDivider()
-                }
-            }
-            "النسخ الاحتياطي" -> {
-                Text("تصدير نسخة من سجلات المزرعة", style = MaterialTheme.typography.titleMedium)
-                Text("يمكنك حفظ ملف CSV في الهاتف أو إرساله إلى بريدك أو مساحة تخزين خارجية. احتفظ بنسخ دورية، ولا تحذف التطبيق قبل التأكد من حفظ الملف.", style = MaterialTheme.typography.bodyMedium)
-                SummaryCard("الحيوانات", animals.size.toString())
-                SummaryCard("الأحداث الصحية والتناسلية", events.size.toString())
-                SummaryCard("المواعيد والمهام", tasks.size.toString())
-                Button(onClick = {
-                    val intent = Intent(Intent.ACTION_SEND).apply {
-                        type = "text/csv"
-                        putExtra(Intent.EXTRA_SUBJECT, "نسخة احتياطية من سجلات مربي الغنم")
-                        putExtra(Intent.EXTRA_TEXT, exportText)
-                    }
-                    context.startActivity(Intent.createChooser(intent, "حفظ أو إرسال نسخة السجلات"))
-                }, modifier = Modifier.fillMaxWidth()) { Text("تصدير نسخة CSV") }
-                Text("يشمل الملف بيانات الحيوانات الأساسية والنسب والمشتريات والاستهلاك والمهام والأحداث المسجلة. الصور نفسها لا تُضمّن داخل CSV؛ يتم الاحتفاظ بمراجعها فقط.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-            "الرعاية اليومية" -> CareScreen(
-                tasks = tasks,
-                onAdd = { type, date, count, notes, result ->
-                    onAddTask(type, date, count, notes, result)
-                }
-            )
-            "المالية والتقارير" -> {
+            else -> {
                 Text("ملخص مالي تقديري", style = MaterialTheme.typography.titleMedium)
                 SummaryCard("تكلفة مشتريات الأعلاف المسجلة", "${"%.0f".format(Locale.US, totalFeedCost)} دج")
                 SummaryCard("المصاريف الإضافية المسجلة", "${"%.0f".format(Locale.US, extraExpenses)} دج")
@@ -1664,211 +1616,5 @@ fun SmartFarmPanel(
                 Text("يشمل التصدير الحيوانات والمشتريات والاستهلاك والمهام والأحداث المسجلة.", style = MaterialTheme.typography.bodySmall)
             }
         }
-    }
-}
-
-
-
-/**
- * دليل تغذية ورعاية إرشادي للأغنام.
- * القيم مبنية على جداول إرشادية منشورة، وتظل تقديرية حتى تحليل العلف وتقييم الحيوان.
- */
-@Composable
-fun ScientificSheepGuide(animals: List<Animal>) {
-    var selectedTag by remember(animals) { mutableStateOf(animals.firstOrNull()?.tag ?: "") }
-    var stage by remember { mutableStateOf("صيانة / نعجة جافة") }
-    var lambs by remember { mutableStateOf("واحد") }
-    var weightText by remember(animals) {
-        mutableStateOf(animals.firstOrNull { it.tag == selectedTag }?.weightKg?.toString() ?: "50")
-    }
-    var heat by remember { mutableStateOf("معتدل") }
-    var daysToLambing by remember { mutableStateOf("30") }
-    var bodyConditionText by remember { mutableStateOf("3") }
-    var feedDmText by remember { mutableStateOf("90") }
-
-    val selected = animals.firstOrNull { it.tag == selectedTag }
-    val weight = weightText.replace(',', '.').toDoubleOrNull()
-    val validWeight = weight != null && weight in 3.0..200.0
-    val bcs = bodyConditionText.replace(',', '.').toDoubleOrNull()
-    val validBcs = bcs != null && bcs in 1.0..5.0
-    val feedDm = feedDmText.replace(',', '.').toDoubleOrNull()
-    val validFeedDm = feedDm != null && feedDm in 10.0..100.0
-    val twin = lambs == "توأم"
-
-    // Dry-matter intake and crude-protein targets are planning estimates adapted
-    // from published ewe tables for a 70 kg reference ewe.
-    val dmPercent = when (stage) {
-        "أواخر الحمل" -> if (twin) 0.0260 else 0.0257
-        "بداية الرضاعة" -> if (twin) 0.0283 else 0.0280
-        "نمو حمل مفطوم" -> 0.0300
-        "فحل في موسم التلقيح" -> 0.0220
-        else -> 0.0169
-    }
-    val cpPercent = when (stage) {
-        "أواخر الحمل" -> if (twin) 0.105 else 0.086
-        "بداية الرضاعة" -> if (twin) 0.155 else 0.116
-        "نمو حمل مفطوم" -> 0.160
-        "فحل في موسم التلقيح" -> 0.095
-        else -> 0.075
-    }
-
-    val daysLeft = daysToLambing.toIntOrNull()
-    val mePerDay = if (validWeight) {
-        val maintenance = 0.394 * Math.pow(weight!!, 0.75)
-        when (stage) {
-            "أواخر الحمل" -> maintenance + if (daysLeft != null && daysLeft <= 14) {
-                if (twin) 11.0 else 8.0
-            } else {
-                if (twin) 5.0 else 4.0
-            }
-            "بداية الرضاعة" -> maintenance + if (twin) 19.0 else 12.0
-            "نمو حمل مفطوم" -> maintenance * 1.55
-            "فحل في موسم التلقيح" -> maintenance + 6.3
-            else -> maintenance
-        }
-    } else 0.0
-
-    val dmKg = if (validWeight) weight!! * dmPercent else 0.0
-    val cpGrams = dmKg * cpPercent * 1000.0
-    val asFedKg = if (validFeedDm && dmKg > 0.0) dmKg / (feedDm!! / 100.0) else 0.0
-    val waterLow = dmKg * 2.1
-    val waterHigh = dmKg * 3.1
-    val heatFactor = when (heat) {
-        "حار" -> 1.25
-        "شديد الحرارة" -> 1.50
-        else -> 1.0
-    }
-
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Text("المرشد العلمي لتغذية ورعاية الأغنام", style = MaterialTheme.typography.titleLarge,
-            color = MaterialTheme.colorScheme.primary)
-        Text(
-            "تقدير أولي حسب الوزن والمرحلة الإنتاجية. للحصول على عليقة دقيقة يلزم تحليل الأعلاف وتقييم الحيوان.",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-
-        if (animals.isNotEmpty()) {
-            DropdownField("الحيوان من سجلات القطيع", selectedTag,
-                animals.map { it.tag }, {
-                    selectedTag = it
-                    weightText = animals.firstOrNull { a -> a.tag == it }?.weightKg?.toString() ?: ""
-                })
-            if (selected != null) {
-                Text("الفئة المسجلة: \${selected.category} • الجنس: \${selected.sex}",
-                    style = MaterialTheme.typography.bodySmall)
-            }
-        } else {
-            Text("لا توجد حيوانات مسجلة؛ أدخل الوزن يدوياً لإجراء تقدير عام.")
-        }
-
-        OutlinedTextField(
-            value = weightText, onValueChange = { weightText = it },
-            label = { Text("الوزن الحي بالكيلوغرام") },
-            supportingText = { Text("النطاق المقبول للحساب 3 إلى 200 كغ") },
-            modifier = Modifier.fillMaxWidth()
-        )
-        DropdownField("المرحلة الإنتاجية", stage,
-            listOf("صيانة / نعجة جافة", "أواخر الحمل", "بداية الرضاعة", "نمو حمل مفطوم", "فحل في موسم التلقيح"),
-            { stage = it })
-        if (stage == "أواخر الحمل" || stage == "بداية الرضاعة") {
-            DropdownField("عدد الحملان", lambs, listOf("واحد", "توأم"), { lambs = it })
-        }
-        if (stage == "أواخر الحمل") {
-            OutlinedTextField(daysToLambing, { daysToLambing = it.filter(Char::isDigit) },
-                label = { Text("الأيام المتبقية للولادة") },
-                supportingText = { Text("لتمييز آخر أسبوعين من الحمل") },
-                modifier = Modifier.fillMaxWidth())
-        }
-        OutlinedTextField(
-            value = bodyConditionText, onValueChange = { bodyConditionText = it },
-            label = { Text("درجة حالة الجسم من 1 إلى 5") },
-            supportingText = { Text("1 هزيل جداً • 3 متوسط • 5 سمين جداً") },
-            modifier = Modifier.fillMaxWidth()
-        )
-        DropdownField("الطقس", heat, listOf("معتدل", "حار", "شديد الحرارة"), { heat = it })
-        OutlinedTextField(
-            value = feedDmText, onValueChange = { feedDmText = it },
-            label = { Text("نسبة المادة الجافة في العلف %") },
-            supportingText = { Text("قيمة تقريبية من بطاقة العلف أو التحليل؛ التبن والحبوب يختلفان عن السيلاج.") },
-            modifier = Modifier.fillMaxWidth()
-        )
-
-        if (!validWeight) {
-            Text("أدخل وزناً صحيحاً قبل عرض الحسابات.", color = MaterialTheme.colorScheme.error)
-        } else {
-            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
-                Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
-                    Text("الاحتياجات اليومية التقديرية", style = MaterialTheme.typography.titleMedium)
-                    Text("المادة الجافة المستهدفة: %.2f كغ/يوم".format(Locale.US, dmKg))
-                    Text("البروتين الخام المستهدف: %.0f غ/يوم (%.1f%% من المادة الجافة)".format(Locale.US, cpGrams, cpPercent * 100))
-                    Text("الطاقة الأيضية التقديرية: %.1f ميغاجول/يوم".format(Locale.US, mePerDay))
-                    Text("ماء الشرب التقريبي: %.1f – %.1f لتر/يوم".format(Locale.US, waterLow * heatFactor, waterHigh * heatFactor))
-                    Text("مادة جافة لأسبوع: %.1f كغ".format(Locale.US, dmKg * 7))
-                    Text("مادة جافة لشهر: %.1f كغ".format(Locale.US, dmKg * 30))
-                }
-            }
-            if (validFeedDm) {
-                Card {
-                    Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text("تحويل المادة الجافة إلى وزن العلف المقدم", style = MaterialTheme.typography.titleMedium)
-                        Text("إذا كانت العليقة كلها تحتوي على %.0f%% مادة جافة:".format(Locale.US, feedDm!!))
-                        Text("%.2f كغ علف كما يقدم يومياً تقريباً".format(Locale.US, asFedKg),
-                            style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.primary)
-                        Text("هذا تحويل حسابي فقط، وليس تحديداً لمكونات العليقة أو نسب الشعير والتبن.")
-                    }
-                }
-            } else {
-                Text("أدخل نسبة مادة جافة بين 10 و100% لحساب وزن العلف كما يقدم.",
-                    color = MaterialTheme.colorScheme.error)
-            }
-        }
-
-        if (!validBcs) {
-            Text("أدخل درجة حالة جسم بين 1 و5.", color = MaterialTheme.colorScheme.error)
-        } else if (bcs!! < 2.0) {
-            Text("تنبيه حالة الجسم: الدرجة منخفضة؛ افحص الأسنان والطفيليات والمرض وجودة العلف، وضع خطة تحسين تدريجية مع مختص.",
-                color = MaterialTheme.colorScheme.error)
-        } else if (bcs!! > 3.5) {
-            Text("تنبيه حالة الجسم: الدرجة مرتفعة؛ راجع كثافة الطاقة والحركة لتجنب السمنة ومشكلات الولادة.",
-                color = MaterialTheme.colorScheme.primary)
-        } else {
-            Text("حالة الجسم ضمن النطاق الإرشادي الشائع 2 إلى 3.5؛ واصل المتابعة باللمس وليس بالنظر فقط.",
-                color = MaterialTheme.colorScheme.primary)
-        }
-
-        HorizontalDivider()
-        Text("المعادن والفيتامينات", style = MaterialTheme.typography.titleMedium)
-        Text("• وفر ماءً نظيفاً ومخلوط أملاح ومعادن مخصصاً للأغنام باستمرار.")
-        Text("• لا تستخدم خلطات الأبقار أو الماعز تلقائياً؛ الأغنام حساسة لتسمم النحاس.")
-        Text("• لا تعطِ السيلينيوم أو النحاس أو الفيتامينات بالحقن أو جرعات مركزة دون تشخيص وجرعة يحددها الطبيب البيطري.")
-        Text("• افحص جودة التبن والعلف والماء؛ تحليل العليقة أفضل من إضافة المكملات عشوائياً.")
-
-        HorizontalDivider()
-        Text("خطة وقاية وتلقيح إرشادية", style = MaterialTheme.typography.titleMedium)
-        listOf(
-            "عند إدخال حيوان جديد" to "عزل ومراقبة وفحص بيطري قبل خلطه بالقطيع.",
-            "قبل موسم التلقيح" to "فحص حالة الجسم والأظلاف والطفيليات والتغذية.",
-            "قبل الولادة بـ 30–45 يوماً" to "ناقش جرعة التعزيز ضد المطثيات والكزاز إذا كانت ضمن برنامج الطبيب والمنطقة وسجل التحصين.",
-            "الحملان حديثة الولادة" to "تأكد من تناول اللبأ سريعاً، وراقب الحرارة والرضاعة والسرة.",
-            "خلال السنة" to "جدول طاعون المجترات الصغيرة والحمى القلاعية والجدري والطفيليات يحدد وفق تعليمات المصالح البيطرية الجزائرية وخطر المنطقة."
-        ).forEach { (heading, detail) ->
-            ListItem(headlineContent = { Text(heading) }, supportingContent = { Text(detail) })
-            HorizontalDivider()
-        }
-        Text("لا توجد جرعة لقاح أو رزنامة ثابتة تصلح لكل المناطق والمنتجات. سجّل اسم اللقاح ورقم التشغيلة وتاريخ الصلاحية، واتبع النشرة والطبيب البيطري.",
-            color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
-
-        HorizontalDivider()
-        Text("متى تطلب الطبيب فوراً؟", style = MaterialTheme.typography.titleMedium)
-        Text("توقف الأكل أو الشرب، انتفاخ شديد، صعوبة التنفس، إسهال شديد أو دموي، عرج حاد، خمول أو حرارة، أو نعجة حامل لا تستطيع الوقوف.")
-        Text(
-            "تنبيه علمي: النسب والطاقة وماء الشرب تقديرات تخطيطية وليست تشخيصاً أو تركيبة علفية مكتملة. تتغير الاحتياجات حسب السلالة والعمر والحركة وحالة الجسم وجودة العلف والمرعى والمناخ والصحة ومعدل النمو وإنتاج الحليب. لا تغيّر العليقة فجأة، ووازن الطاقة والبروتين والمعادن بعد تحليل الأعلاف.",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-        Text("مراجع إرشادية: Merck Veterinary Manual؛ Penn State Extension؛ Finnish Feed Tables؛ South Dakota State University Extension.",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
