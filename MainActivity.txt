@@ -188,6 +188,24 @@ class FarmViewModel(private val dao: FarmDao) : ViewModel() {
     val vaccineRecords = dao.vaccineRecords().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
     val vaccineCampaigns = dao.vaccineCampaigns().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
     val careStatuses = dao.animalCareStatuses().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    val treatments = dao.treatments().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    val reproductionRecords = dao.reproductionRecords().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    val medicineStock = dao.medicineStock().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    val auditEntries = dao.auditEntries().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    val financeEntries = dao.financeEntries().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    fun deleteTreatment(id: Long, onResult: (Boolean) -> Unit) {
+        viewModelScope.launch { onResult(runCatching { dao.deleteTreatment(id); dao.addAuditEntry(AuditEntry(action = "حذف", recordType = "علاج", recordId = id.toString())) }.isSuccess) }
+    }
+    fun deleteMedicineStock(id: Long, onResult: (Boolean) -> Unit) {
+        viewModelScope.launch { onResult(runCatching { dao.deleteMedicineStock(id); dao.addAuditEntry(AuditEntry(action = "حذف", recordType = "مخزون دواء", recordId = id.toString())) }.isSuccess) }
+    }
+    fun deleteReproduction(id: Long, onResult: (Boolean) -> Unit) {
+        viewModelScope.launch { onResult(runCatching { dao.deleteReproduction(id); dao.addAuditEntry(AuditEntry(action = "حذف", recordType = "تكاثر", recordId = id.toString())) }.isSuccess) }
+    }
+    fun addFinance(entry: FinanceEntry, onResult: (Boolean) -> Unit) {
+        viewModelScope.launch { onResult(runCatching { dao.addFinanceEntry(entry); dao.addAuditEntry(AuditEntry(action = "إضافة", recordType = "مالية", details = entry.entryType + " • " + entry.amountDzd + " دج")) }.isSuccess) }
+    }
 
     fun addAnimal(
         tag: String,
@@ -371,6 +389,11 @@ fun FarmScreen(vm: FarmViewModel) {
     val vaccineRecords by vm.vaccineRecords.collectAsState()
     val vaccineCampaigns by vm.vaccineCampaigns.collectAsState()
     val careStatuses by vm.careStatuses.collectAsState()
+    val treatments by vm.treatments.collectAsState()
+    val reproductionRecords by vm.reproductionRecords.collectAsState()
+    val medicineStock by vm.medicineStock.collectAsState()
+    val auditEntries by vm.auditEntries.collectAsState()
+    val financeEntries by vm.financeEntries.collectAsState()
 
     var selectedTab by remember { mutableIntStateOf(0) }
     var selectedAnimal by remember { mutableStateOf<Animal?>(null) }
@@ -511,6 +534,15 @@ fun FarmScreen(vm: FarmViewModel) {
                                 vaccineRecords = vaccineRecords,
                                 vaccineCampaigns = vaccineCampaigns,
                                 careStatuses = careStatuses,
+                                treatments = treatments,
+                                reproductionRecords = reproductionRecords,
+                                medicineStock = medicineStock,
+                                auditEntries = auditEntries,
+                                financeEntries = financeEntries,
+                                onDeleteTreatment = { id, result -> vm.deleteTreatment(id, result) },
+                                onDeleteReproduction = { id, result -> vm.deleteReproduction(id, result) },
+                                onDeleteMedicineStock = { id, result -> vm.deleteMedicineStock(id, result) },
+                                onAddFinance = { entry, result -> vm.addFinance(entry, result) },
                                 onAddVaccineRecord = { record, result -> vm.addVaccineRecord(record, result) },
                                 onAddVaccineCampaign = { campaign, result -> vm.addVaccineCampaign(campaign, result) },
                                 onSaveCareStatus = { status, result -> vm.saveCareStatus(status, result) },
@@ -1660,6 +1692,15 @@ fun SmartFarmPanel(
     vaccineRecords: List<VaccineDoseRecord>,
     vaccineCampaigns: List<VaccineCampaign>,
     careStatuses: List<AnimalCareStatus>,
+    treatments: List<TreatmentRecord>,
+    reproductionRecords: List<ReproductionRecord>,
+    medicineStock: List<MedicineStock>,
+    auditEntries: List<AuditEntry>,
+    financeEntries: List<FinanceEntry>,
+    onDeleteTreatment: (Long, (Boolean) -> Unit) -> Unit,
+    onDeleteReproduction: (Long, (Boolean) -> Unit) -> Unit,
+    onDeleteMedicineStock: (Long, (Boolean) -> Unit) -> Unit,
+    onAddFinance: (FinanceEntry, (Boolean) -> Unit) -> Unit,
     onAddVaccineRecord: (VaccineDoseRecord, (Boolean) -> Unit) -> Unit,
     onAddVaccineCampaign: (VaccineCampaign, (Boolean) -> Unit) -> Unit,
     onSaveCareStatus: (AnimalCareStatus, (Boolean) -> Unit) -> Unit,
