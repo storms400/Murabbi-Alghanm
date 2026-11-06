@@ -117,11 +117,7 @@ object MawashiBackup {
                     val cipher = Cipher.getInstance("AES/GCM/NoPadding")
                     cipher.init(Cipher.DECRYPT_MODE, deriveKey(password, salt), GCMParameterSpec(128, iv))
                     val bounded = CountingInputStream(input, MAX_BACKUP_BYTES)
-                    CipherInputStream(bounded, cipher).use { decrypted ->
-                        plainZip.outputStream().buffered().use { out ->
-                            decrypted.copyBoundedTo(out, MAX_BACKUP_BYTES)
-                        }
-                    }
+                    decryptToFile(input, plainZip, cipher)
                 }
 
                 var databaseSeen = false
@@ -320,7 +316,6 @@ object MawashiBackup {
         if (!isSafeEntryName(name) || !name.startsWith("photos/")) return false
         val leaf = name.removePrefix("photos/")
         if (leaf.isBlank() || leaf.contains('/')) return false
-        return leaf.substringAfterLast('.', "").lowercase() in
-            setOf("jpg", "jpeg", "png", "webp", "gif", "heic", "heif")
+        return BackupArchivePolicy.supportedPhotoExtension(leaf.substringAfterLast('.', ""))
     }
 }
