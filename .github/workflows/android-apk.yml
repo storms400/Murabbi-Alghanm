@@ -28,6 +28,7 @@ name: Build Android APK
       - "mawashi-pro-v3-independent-20261106"
       - "mawashi-pro-v4-independent-20261106"
       - "mawashi-pro-v5-professional-20261106"
+      - "mawashi-pro-v6-independent-20261106"
 
 jobs:
   build:
@@ -122,7 +123,9 @@ jobs:
           p = Path("app/build.gradle.kts")
           s = p.read_text()
           branch = os.environ.get("GITHUB_REF_NAME")
-          expected = ("dz.murabbi.alghanm.mawashi.prov520261106"
+          expected = ("dz.murabbi.alghanm.mawashi.prov620261106"
+                      if branch == "mawashi-pro-v6-independent-20261106"
+                      else "dz.murabbi.alghanm.mawashi.prov520261106"
                       if branch == "mawashi-pro-v5-professional-20261106"
                       else "dz.murabbi.alghanm.mawashi.prov420261106"
                       if branch == "mawashi-pro-v4-independent-20261106"
@@ -161,7 +164,9 @@ jobs:
           s = Path("app/build.gradle.kts").read_text()
           m = re.search(r'applicationId\s*=\s*"([^"]+)"', s)
           branch = os.environ.get("GITHUB_REF_NAME")
-          expected = ("dz.murabbi.alghanm.mawashi.prov520261106"
+          expected = ("dz.murabbi.alghanm.mawashi.prov620261106"
+                      if branch == "mawashi-pro-v6-independent-20261106"
+                      else "dz.murabbi.alghanm.mawashi.prov520261106"
                       if branch == "mawashi-pro-v5-professional-20261106"
                       else "dz.murabbi.alghanm.mawashi.prov420261106"
                       if branch == "mawashi-pro-v4-independent-20261106"
@@ -194,12 +199,12 @@ jobs:
             exit 1
           fi
           ACTUAL_PACKAGE="$("$AAPT" dump badging "$APK" | sed -n "s/^package: name='\\([^']*\\)'.*/\\1/p" | head -n 1)"
-          EXPECTED_PACKAGE="dz.murabbi.alghanm.mawashi.prov520261106"
+          EXPECTED_PACKAGE="dz.murabbi.alghanm.mawashi.prov620261106"
           if [ "$ACTUAL_PACKAGE" != "$EXPECTED_PACKAGE" ]; then
             echo "ERROR: APK package is $ACTUAL_PACKAGE, expected $EXPECTED_PACKAGE"
             exit 1
           fi
-          grep -q '"mawashi_pro_v5_standalone20261106.db"' app/src/main/java/dz/murabbi/alghanm/data/FarmDatabase.kt
+          grep -q '"mawashi_pro_v6_standalone20261106.db"' app/src/main/java/dz/murabbi/alghanm/data/FarmDatabase.kt
           echo "VERIFIED APK PACKAGE: $ACTUAL_PACKAGE"
           echo "VERIFIED DATABASE: mawashi_pro_v5_standalone20261106.db"
           grep -q "CREATE TABLE IF NOT EXISTS treatment_records" FarmDatabase.txt
@@ -208,7 +213,9 @@ jobs:
           grep -q "CREATE TABLE IF NOT EXISTS audit_entries" FarmDatabase.txt
           grep -q "CREATE TABLE IF NOT EXISTS app_users" FarmDatabase.txt
           grep -q "CREATE TABLE IF NOT EXISTS finance_entries" FarmDatabase.txt
-          grep -q "version = 6" FarmDatabase.txt
+          grep -q "version = 7" FarmDatabase.txt
+          grep -q "medicineBatchId" FarmDatabase.txt
+          grep -q "deleteTreatmentAndRestoreStock" FarmDatabase.txt
           grep -q "saveTreatmentWithStock" FarmDatabase.txt
           echo "VERIFIED V5 TREATMENT, REPRODUCTION, MEDICINE, AUDIT, USER AND FINANCE TABLES"
           grep -q "CREATE TABLE IF NOT EXISTS vaccine_dose_records" FarmDatabase.txt
@@ -218,7 +225,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: Mawashi-Pro-V5-Standalone-20261106-APK
+          name: Mawashi-Pro-V6-Standalone-20261106-APK
           path: app/build/outputs/apk/debug/app-debug.apk
 
 # Rebuild the professional sheep-icon test APK
