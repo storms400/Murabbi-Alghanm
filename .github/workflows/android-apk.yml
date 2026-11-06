@@ -82,10 +82,13 @@ jobs:
           import re
           p = Path("app/src/main/AndroidManifest.xml")
           s = p.read_text()
-          match = re.search(r'<application\\b[^>]*>', s)
+          match = re.search(r'<application(?=\\s|>)', s)
           if not match:
               raise SystemExit("Could not locate application element in AndroidManifest.xml")
-          tag = match.group(0)
+          tag_end = s.find(">", match.start())
+          if tag_end < 0:
+              raise SystemExit("Malformed application element in AndroidManifest.xml")
+          tag = s[match.start():tag_end + 1]
           def set_android_attr(tag, name, value):
               pattern = r'\\sandroid:' + re.escape(name) + r'="[^"]*"'
               if re.search(pattern, tag):
@@ -93,7 +96,7 @@ jobs:
               return tag[:-1] + ' android:' + name + '="' + value + '">'
           tag = set_android_attr(tag, "icon", "@drawable/ic_sheep")
           tag = set_android_attr(tag, "label", "مواشي")
-          s = s[:match.start()] + tag + s[match.end():]
+          s = s[:match.start()] + tag + s[tag_end + 1:]
           import xml.etree.ElementTree as ET
           ET.fromstring(s)
           p.write_text(s)
