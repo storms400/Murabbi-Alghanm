@@ -72,9 +72,23 @@ class VaccineReminderReceiver : BroadcastReceiver() {
     }
 }
 
+private fun vaccineAlarmCode(tag: String, key: String, label: String): Int =
+    (tag + "|" + key + "|" + label).hashCode()
+
+private fun cancelVaccineAlarm(context: Context, tag: String, key: String, label: String) {
+    val code = vaccineAlarmCode(tag, key, label)
+    val intent = Intent(context, VaccineReminderReceiver::class.java)
+    val pending = PendingIntent.getBroadcast(
+        context, code, intent,
+        PendingIntent.FLAG_NO_CREATE or PendingIntent.FLAG_IMMUTABLE
+    ) ?: return
+    (context.getSystemService(Context.ALARM_SERVICE) as AlarmManager).cancel(pending)
+    pending.cancel()
+}
+
 private fun scheduleVaccineAlarm(context: Context, tag: String, key: String, title: String, due: LocalDate, day: LocalDate, label: String) {
     val alarm = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
-    val code = (tag + key + label).hashCode()
+    val code = vaccineAlarmCode(tag, key, label)
     val intent = Intent(context, VaccineReminderReceiver::class.java).apply {
         putExtra("title", "تذكير تطعيم: " + tag)
         putExtra("body", title + " — " + label + ". موعد الاستحقاق: " + due)
@@ -82,7 +96,11 @@ private fun scheduleVaccineAlarm(context: Context, tag: String, key: String, tit
     }
     val pending = PendingIntent.getBroadcast(context, code, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
     val millis = LocalDateTime.of(day, java.time.LocalTime.of(8, 0)).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
-    if (millis <= System.currentTimeMillis()) return
+    if (millis <= System.currentTimeMillis()) {
+        alarm.cancel(pending)
+        pending.cancel()
+        return
+    }
     try {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && alarm.canScheduleExactAlarms())
             alarm.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, millis, pending)
@@ -97,8 +115,13 @@ class VaccineBootReceiver : BroadcastReceiver() {
         Thread {
             try {
                 kotlinx.coroutines.runBlocking {
-                    FarmDatabase.get(context).farmDao().vaccineRecords().first().forEach { record ->
+                    val latest = FarmDatabase.get(context).farmDao().vaccineRecords().first()
+                        .filter { it.nextDueDate.isNotBlank() }
+                        .groupBy { it.animalTag to it.vaccineKey }
+                        .values.mapNotNull { records -> records.maxByOrNull { it.administeredDate + "|" + it.id } }
+                    latest.forEach { record ->
                         val due = runCatching { LocalDate.parse(record.nextDueDate) }.getOrNull() ?: return@forEach
+                        scheduleVaccineAlarm(context, record.animalTag, record.vaccineKey + "-next", record.vaccineName, due, due.minusDays(3), "تبقى 3 أيام على الجرعة التالية")
                         scheduleVaccineAlarm(context, record.animalTag, record.vaccineKey + "-next", record.vaccineName, due, due, "موعد الجرعة التالية المسجل")
                     }
                 }
@@ -1725,14 +1748,27 @@ fun SmartFarmPanel(
                 events.any { it.animalTag == item.animalTag && it.eventType == "تطعيم" && it.notes.contains("VAX:" + item.key) }
         val careByTag = careStatuses.associateBy { it.animalTag }
         LaunchedEffect(vaccinePlan, events, vaccineRecords) {
-            vaccinePlan.filterNot { vaccineRecorded(it) }.forEach { item ->
-                scheduleVaccineAlarm(context, item.animalTag, item.key, item.title, item.dueDate, item.dueDate.minusDays(3), "تبقى 3 أيام — موعد استرشادي")
-                scheduleVaccineAlarm(context, item.animalTag, item.key, item.title, item.dueDate, item.dueDate, "موعد مراجعة التطعيم اليوم الساعة 08:00")
+            vaccinePlan.forEach { item ->
+                val labels = listOf("تبقى 3 أيام — موعد استرشادي", "موعد مراجعة التطعيم اليوم الساعة 08:00")
+                if (vaccineRecorded(item)) {
+                    labels.forEach { cancelVaccineAlarm(context, item.animalTag, item.key, it) }
+                } else {
+                    scheduleVaccineAlarm(context, item.animalTag, item.key, item.title, item.dueDate, item.dueDate.minusDays(3), labels[0])
+                    scheduleVaccineAlarm(context, item.animalTag, item.key, item.title, item.dueDate, item.dueDate, labels[1])
+                }
             }
-            vaccineRecords.filter { it.nextDueDate.isNotBlank() }.forEach { record ->
-                val next = runCatching { LocalDate.parse(record.nextDueDate) }.getOrNull() ?: return@forEach
-                scheduleVaccineAlarm(context, record.animalTag, record.vaccineKey + "-next", record.vaccineName, next, next.minusDays(3), "تبقى 3 أيام على الجرعة التالية")
-                scheduleVaccineAlarm(context, record.animalTag, record.vaccineKey + "-next", record.vaccineName, next, next, "موعد الجرعة التالية المسجل")
+            val latest = vaccineRecords.groupBy { it.animalTag to it.vaccineKey }
+                .values.mapNotNull { records -> records.maxByOrNull { it.administeredDate + "|" + it.id } }
+            latest.forEach { record ->
+                val key = record.vaccineKey + "-next"
+                val labels = listOf("تبقى 3 أيام على الجرعة التالية", "موعد الجرعة التالية المسجل")
+                val next = runCatching { LocalDate.parse(record.nextDueDate) }.getOrNull()
+                if (next == null) {
+                    labels.forEach { cancelVaccineAlarm(context, record.animalTag, key, it) }
+                } else {
+                    scheduleVaccineAlarm(context, record.animalTag, key, record.vaccineName, next, next.minusDays(3), labels[0])
+                    scheduleVaccineAlarm(context, record.animalTag, key, record.vaccineName, next, next, labels[1])
+                }
             }
         }
         when (section) {
