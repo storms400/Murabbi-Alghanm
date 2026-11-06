@@ -136,14 +136,14 @@ abstract class FarmDao {
         FROM feed_purchases
         WHERE feedName = :feedName
     """)
-    fun purchasedQuantity(feedName: String): Flow<Double>
+    abstract fun purchasedQuantity(feedName: String): Flow<Double>
 
     @Query("""
         SELECT COALESCE(SUM(quantityKg), 0)
         FROM feed_consumptions
         WHERE feedName = :feedName
     """)
-    fun consumedQuantity(feedName: String): Flow<Double>
+    abstract fun consumedQuantity(feedName: String): Flow<Double>
 
     @Insert
     abstract suspend fun addTask(task: FarmTask)
