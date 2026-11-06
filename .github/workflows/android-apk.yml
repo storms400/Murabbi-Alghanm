@@ -33,6 +33,7 @@ name: Build Android APK
       - "mawashi-pro-v8-independent-20261106"
       - "mawashi-pro-v9-independent-20261106"
       - "mawashi-pro-v10-independent-20261106"
+      - "mawashi-pro-v11-security-backup-20261106"
 
 jobs:
   build:
@@ -127,7 +128,9 @@ jobs:
           p = Path("app/build.gradle.kts")
           s = p.read_text()
           branch = os.environ.get("GITHUB_REF_NAME")
-          expected = ("dz.murabbi.alghanm.mawashi.prov1020261106"
+          expected = ("dz.murabbi.alghanm.mawashi.prov1120261106"
+                      if branch == "mawashi-pro-v11-security-backup-20261106"
+                      else "dz.murabbi.alghanm.mawashi.prov1020261106"
                       if branch == "mawashi-pro-v10-independent-20261106"
                       else "dz.murabbi.alghanm.mawashi.prov920261106"
                       if branch == "mawashi-pro-v9-independent-20261106"
@@ -176,7 +179,9 @@ jobs:
           s = Path("app/build.gradle.kts").read_text()
           m = re.search(r'applicationId\s*=\s*"([^"]+)"', s)
           branch = os.environ.get("GITHUB_REF_NAME")
-          expected = ("dz.murabbi.alghanm.mawashi.prov1020261106"
+          expected = ("dz.murabbi.alghanm.mawashi.prov1120261106"
+                      if branch == "mawashi-pro-v11-security-backup-20261106"
+                      else "dz.murabbi.alghanm.mawashi.prov1020261106"
                       if branch == "mawashi-pro-v10-independent-20261106"
                       else "dz.murabbi.alghanm.mawashi.prov920261106"
                       if branch == "mawashi-pro-v9-independent-20261106"
@@ -219,17 +224,22 @@ jobs:
             exit 1
           fi
           ACTUAL_PACKAGE="$("$AAPT" dump badging "$APK" | sed -n "s/^package: name='\\([^']*\\)'.*/\\1/p" | head -n 1)"
-          EXPECTED_PACKAGE="dz.murabbi.alghanm.mawashi.prov1020261106"
+          EXPECTED_PACKAGE="dz.murabbi.alghanm.mawashi.prov1120261106"
           if [ "$ACTUAL_PACKAGE" != "$EXPECTED_PACKAGE" ]; then
             echo "ERROR: APK package is $ACTUAL_PACKAGE, expected $EXPECTED_PACKAGE"
             exit 1
           fi
-          grep -q '"mawashi_pro_v10_standalone20261106.db"' app/src/main/java/dz/murabbi/alghanm/data/FarmDatabase.kt
+          grep -q '"mawashi_pro_v11_standalone20261106.db"' app/src/main/java/dz/murabbi/alghanm/data/FarmDatabase.kt
           echo "VERIFIED APK PACKAGE: $ACTUAL_PACKAGE"
-          echo "VERIFIED DATABASE: mawashi_pro_v10_standalone20261106.db"
+          echo "VERIFIED DATABASE: mawashi_pro_v11_standalone20261106.db"
           grep -q "PBKDF2WithHmacSHA256" MainActivity.txt
+          grep -q "newRecoveryCode" MainActivity.txt
+          grep -q "recoveryHash" MainActivity.txt
+          grep -q "lockRequested" MainActivity.txt
+          grep -q "version = 9" FarmDatabase.txt
+          grep -q "MIGRATION_8_9" FarmDatabase.txt
           grep -q "activeOwner()" FarmDatabase.txt
-          grep -q "mawashi_pro_v10_standalone20261106.db" FarmDatabase.txt
+          grep -q "mawashi_pro_v11_standalone20261106.db" FarmDatabase.txt
           echo "VERIFIED V10 LOCAL PIN GATE AND ISOLATED DATABASE"
           grep -q "addReproductionWithOffspring" FarmDatabase.txt
           grep -q "offspringTags" MainActivity.txt
@@ -258,7 +268,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: Mawashi-Pro-V10-Standalone-20261106-APK
+          name: Mawashi-Pro-V11-Standalone-20261106-APK
           path: app/build/outputs/apk/debug/app-debug.apk
 
 # Rebuild the professional sheep-icon test APK
