@@ -256,7 +256,7 @@ abstract class FarmDatabase : RoomDatabase() {
                 INSTANCE ?: Room.databaseBuilder(
                     context.applicationContext,
                     FarmDatabase::class.java,
-                    "mawashi_pro_standalone20261106.db"
+                    "mawashi_pro_v3_standalone20261106.db"
                 )
                     .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
                     .build()
