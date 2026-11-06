@@ -184,7 +184,7 @@ private fun SecureFarmEntry(vm: FarmViewModel, dao: FarmDao, lockRequested: Bool
     }
 
     if (!loaded) Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
-    else if (unlocked) FarmScreen(vm) { unlocked = false; pin = ""; message = "تم قفل التطبيق." }
+    else if (unlocked) FarmScreen(vm, dao) { unlocked = false; pin = ""; message = "تم قفل التطبيق." }
     else Column(Modifier.fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally) {
         Text("مواشي", style = MaterialTheme.typography.headlineLarge, color = MaterialTheme.colorScheme.primary)
@@ -529,7 +529,7 @@ class FarmViewModel(private val dao: FarmDao) : ViewModel() {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun FarmScreen(vm: FarmViewModel, onLock: () -> Unit = {}) {
+fun FarmScreen(vm: FarmViewModel, dao: FarmDao, onLock: () -> Unit = {}) {
     val animals by vm.animals.collectAsState()
     val purchases by vm.purchases.collectAsState()
     val consumptions by vm.consumptions.collectAsState()
@@ -548,6 +548,29 @@ fun FarmScreen(vm: FarmViewModel, onLock: () -> Unit = {}) {
     var selectedAnimal by remember { mutableStateOf<Animal?>(null) }
     var selectedSmartSection by remember { mutableStateOf<String?>(null) }
     var screenMessage by remember { mutableStateOf("") }
+    var backupDialog by remember { mutableStateOf(false) }
+    var backupMode by remember { mutableStateOf("export") }
+    var backupPassword by remember { mutableStateOf("") }
+    var pendingRestoreUri by remember { mutableStateOf<android.net.Uri?>(null) }
+    var backupBusy by remember { mutableStateOf(false) }
+    val backupContext = LocalContext.current
+    val backupScope = rememberCoroutineScope()
+    val exportBackupLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/vnd.mawashi.backup")) { uri ->
+        if (uri != null) backupScope.launch {
+            backupBusy = true
+            runCatching { MawashiBackup.exportEncrypted(backupContext, dao, uri, backupPassword) }
+                .onSuccess {
+                    backupPassword = ""
+                    screenMessage = "تم إنشاء نسخة احتياطية مشفرة تشمل قاعدة البيانات والصور."
+                    (backupContext as? ComponentActivity)?.recreate()
+                }
+                .onFailure { screenMessage = "فشل إنشاء النسخة: ${it.message ?: "خطأ غير معروف"}" }
+            backupBusy = false
+        }
+    }
+    val importBackupLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) { pendingRestoreUri = uri; backupMode = "import"; backupDialog = true }
+    }
 
     val tabs = listOf(
         Triple("الرئيسية", "⌂", 0),
@@ -557,12 +580,61 @@ fun FarmScreen(vm: FarmViewModel, onLock: () -> Unit = {}) {
         Triple("الأقسام", "▦", 4)
     )
 
+    if (backupDialog) AlertDialog(
+        onDismissRequest = { if (!backupBusy) { backupDialog = false; backupPassword = "" } },
+        title = { Text(if (backupMode == "export") "إنشاء نسخة احتياطية مشفرة" else "استعادة نسخة احتياطية") },
+        text = {
+            Column {
+                Text(if (backupMode == "export")
+                    "سيتم تضمين قاعدة البيانات وصور الحيوانات. احتفظ بكلمة المرور؛ لا يمكن فتح النسخة بدونها."
+                    else "تحذير: الاستعادة تستبدل بيانات هذه النسخة بالكامل. أنشئ نسخة احتياطية حالية قبل المتابعة.")
+                Spacer(Modifier.height(10.dp))
+                OutlinedTextField(
+                    value = backupPassword,
+                    onValueChange = { backupPassword = it.take(128) },
+                    label = { Text("كلمة مرور النسخة (12 محرفاً على الأقل)") },
+                    singleLine = true,
+                    visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
+                    modifier = Modifier.fillMaxWidth()
+                )
+                if (backupBusy) LinearProgressIndicator(Modifier.fillMaxWidth())
+            }
+        },
+        confirmButton = {
+            TextButton(enabled = !backupBusy && backupPassword.length >= 12, onClick = {
+                if (backupMode == "export") {
+                    backupDialog = false
+                    exportBackupLauncher.launch("Mawashi-Backup-${LocalDate.now()}.mwb")
+                } else {
+                    val uri = pendingRestoreUri
+                    if (uri != null) backupScope.launch {
+                        backupBusy = true
+                        runCatching { MawashiBackup.restoreEncrypted(backupContext, uri, backupPassword) }
+                            .onSuccess {
+                                backupDialog = false
+                                backupPassword = ""
+                                screenMessage = "تمت الاستعادة والتحقق من قاعدة البيانات."
+                                (backupContext as? ComponentActivity)?.recreate()
+                            }
+                            .onFailure { screenMessage = "فشلت الاستعادة: ${it.message ?: "كلمة مرور خاطئة أو ملف تالف"}" }
+                        backupBusy = false
+                    }
+                }
+            }) { Text(if (backupMode == "export") "اختيار مكان الحفظ" else "استعادة واستبدال البيانات") }
+        },
+        dismissButton = { TextButton(enabled = !backupBusy, onClick = { backupDialog = false; backupPassword = "" }) { Text("إلغاء") } }
+    )
+
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             TopAppBar(
                 title = { Text("مواشي") },
-                actions = { TextButton(onClick = onLock) { Text("قفل") } },
+                actions = {
+                    TextButton(onClick = { backupMode = "export"; backupPassword = ""; backupDialog = true }) { Text("نسخ") }
+                    TextButton(onClick = { importBackupLauncher.launch(arrayOf("*/*")) }) { Text("استعادة") }
+                    TextButton(onClick = onLock) { Text("قفل") }
+                },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.surface
                 )
