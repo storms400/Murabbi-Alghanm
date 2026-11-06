@@ -69,8 +69,9 @@ object MawashiBackup {
                     cipher.init(Cipher.ENCRYPT_MODE, deriveKey(password, salt), GCMParameterSpec(128, iv))
                     val encrypted = CipherOutputStream(BufferedOutputStream(raw), cipher)
                     ZipOutputStream(encrypted).use { zip ->
+                            var totalPayload = 0L
                             zip.putNextEntry(ZipEntry("farm.db"))
-                            databaseFile.inputStream().buffered().use { it.copyBoundedTo(zip, MAX_BACKUP_BYTES) }
+                            databaseFile.inputStream().buffered().use { totalPayload += it.copyBoundedTo(zip, MAX_BACKUP_BYTES - totalPayload) }
                             zip.closeEntry()
                             animals.filter { it.photoUri.isNotBlank() }.forEach { animal ->
                                 val uri = Uri.parse(animal.photoUri)
@@ -80,7 +81,7 @@ object MawashiBackup {
                                     ?: error("صيغة صورة غير مدعومة للحيوان ${animal.tag}: $mime")
                                 zip.putNextEntry(ZipEntry("photos/${safeTag(animal.tag)}.$extension"))
                                 context.contentResolver.openInputStream(uri)?.use {
-                                    it.copyBoundedTo(zip, MAX_BACKUP_BYTES)
+                                    totalPayload += it.copyBoundedTo(zip, MAX_BACKUP_BYTES - totalPayload)
                                 } ?: error("تعذرت قراءة صورة الحيوان ${animal.tag}.")
                                 zip.closeEntry()
                             }
