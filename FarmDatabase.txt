@@ -287,6 +287,14 @@ abstract class FarmDao {
     @Insert abstract suspend fun addFinanceEntry(entry: FinanceEntry)
     @Update abstract suspend fun updateFinanceEntry(entry: FinanceEntry)
     @Query("DELETE FROM finance_entries WHERE id = :id") abstract suspend fun deleteFinanceEntry(id: Long)
+    @Transaction open suspend fun updateFinanceWithAudit(entry: FinanceEntry) {
+        updateFinanceEntry(entry)
+        addAuditEntry(AuditEntry(action = "تعديل", recordType = "مالية", recordId = entry.id.toString(), details = entry.entryType + " • " + entry.amountDzd + " دج"))
+    }
+    @Transaction open suspend fun deleteFinanceWithAudit(id: Long) {
+        deleteFinanceEntry(id)
+        addAuditEntry(AuditEntry(action = "حذف", recordType = "مالية", recordId = id.toString()))
+    }
     @Query("SELECT * FROM finance_entries ORDER BY entryDate DESC, id DESC") abstract fun financeEntries(): Flow<List<FinanceEntry>>
     @Query("UPDATE animals SET photoUri = :photoUri WHERE tag = :tag") abstract suspend fun updateAnimalPhoto(tag: String, photoUri: String)
 
