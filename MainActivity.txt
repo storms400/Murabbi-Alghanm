@@ -968,13 +968,17 @@ fun AnimalDetailsScreen(
     var weaningDate by remember(animal.tag) { mutableStateOf(animal.weaningDate) }
     var breed by remember(animal.tag) { mutableStateOf(animal.breed) }
     var photoUri by remember(animal.tag) { mutableStateOf(animal.photoUri) }
-    val photoPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
-        if (uri != null) photoUri = uri.toString()
+    val context = LocalContext.current
+    val photoPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) {
+            runCatching { context.contentResolver.takePersistableUriPermission(uri, android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION) }
+            photoUri = uri.toString()
+        }
     }
     val profilePhoto = remember(photoUri) {
         runCatching {
             if (photoUri.isBlank()) null else BitmapFactory.decodeStream(
-                androidx.compose.ui.platform.LocalContext.current.contentResolver.openInputStream(android.net.Uri.parse(photoUri))
+                context.contentResolver.openInputStream(android.net.Uri.parse(photoUri))
             )?.asImageBitmap()
         }.getOrNull()
     }
@@ -1000,7 +1004,7 @@ fun AnimalDetailsScreen(
         } else {
             Card(Modifier.fillMaxWidth()) { Box(Modifier.fillMaxWidth().height(110.dp), contentAlignment = androidx.compose.ui.Alignment.Center) { Text("🐑\nلا توجد صورة للحيوان", style = MaterialTheme.typography.titleMedium) } }
         }
-        OutlinedButton(onClick = { photoPicker.launch("image/*") }, modifier = Modifier.fillMaxWidth()) { Text("اختيار صورة الحيوان") }
+        OutlinedButton(onClick = { photoPicker.launch(arrayOf("image/*")) }, modifier = Modifier.fillMaxWidth()) { Text("اختيار صورة الحيوان") }
         OutlinedButton(onClick = { photoUri = "" }, modifier = Modifier.fillMaxWidth(), enabled = photoUri.isNotBlank()) { Text("إزالة الصورة") }
 
         OutlinedTextField(
