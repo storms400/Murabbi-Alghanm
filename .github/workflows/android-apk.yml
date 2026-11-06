@@ -113,7 +113,7 @@ jobs:
 
           s, count = re.subn(
               r'(?m)^(\s*applicationId\s*=\s*)["\'][^"\']+["\']',
-              r'\1"dz.murabbi.alghanm.animalcards"',
+              r'\1"dz.murabbi.alghanm.animalcards2026"',
               s
           )
 
@@ -121,10 +121,22 @@ jobs:
               raise SystemExit("ERROR: Could not set applicationId exactly once")
 
           p.write_text(s)
-          print("TEST APPLICATION ID: dz.murabbi.alghanm.animalcards")
+          print("TEST APPLICATION ID: dz.murabbi.alghanm.animalcards2026")
           PY
 
           grep -n applicationId app/build.gradle.kts
+
+          # Verify the Gradle configuration resolves to the isolated package before building.
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          s = Path("app/build.gradle.kts").read_text()
+          m = re.search(r'applicationId\\s*=\\s*["\\']([^"\\']+)', s)
+          expected = "dz.murabbi.alghanm.animalcards2026"
+          if not m or m.group(1) != expected:
+              raise SystemExit(f"Package ID verification failed: {m.group(1) if m else 'missing'}")
+          print(f"VERIFIED ISOLATED PACKAGE: {m.group(1)}")
+          PY
 
       - name: Build APK
         run: gradle --no-daemon :app:assembleDebug
