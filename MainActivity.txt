@@ -2202,12 +2202,12 @@ fun SmartFarmPanel(
                             (reproductionExpected.isNotBlank() && runCatching { LocalDate.parse(reproductionExpected) }.isFailure)) {
                             message = "تحقق من التاريخ وعدد المواليد."
                         } else {
-                            saving = true
-                            val childTags = reproductionOffspringTags.split(',', ';', '\\n').map { it.trim() }.filter { it.isNotBlank() }
-                            if (reproductionType == "ولادة" && (childTags.size != count || childTags.distinct().size != childTags.size)) {
-                                message = "أدخل رقماً فريداً لكل مولود، ويجب أن يساوي عدد الأرقام عدد المواليد."
+                            val childTags = reproductionOffspringTags.split(',', ';', '\n').map { it.trim() }.filter { it.isNotBlank() }
+                            if (reproductionType == "ولادة" && (reproductionMale.isBlank() || childTags.size != count || childTags.distinct().size != childTags.size)) {
+                                message = "أدخل رمز الفحل وأرقاماً فريدة لكل مولود، ويجب أن يساوي عدد الأرقام عدد المواليد."
                                 return@Button
                             }
+                            saving = true
                             onAddReproduction(ReproductionRecord(femaleTag = targetTag, maleTag = reproductionMale.trim(),
                                 eventType = reproductionType, eventDate = eventDate, expectedDate = reproductionExpected,
                                 offspringCount = count, offspringTags = childTags.joinToString(","))) { ok ->
