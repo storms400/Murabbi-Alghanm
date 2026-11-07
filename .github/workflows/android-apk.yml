@@ -326,7 +326,7 @@ jobs:
           grep -q "CREATE TABLE IF NOT EXISTS audit_entries" FarmDatabase.txt
           grep -q "CREATE TABLE IF NOT EXISTS app_users" FarmDatabase.txt
           grep -q "CREATE TABLE IF NOT EXISTS finance_entries" FarmDatabase.txt
-          grep -q "version = 9" FarmDatabase.txt
+          grep -q "version = 10" FarmDatabase.txt
           grep -q "CreateDocument" MainActivity.txt
           grep -q "financeDate" MainActivity.txt
           grep -q "sex = \"غير محدد\"" FarmDatabase.txt
