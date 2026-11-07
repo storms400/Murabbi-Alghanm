@@ -26,6 +26,13 @@ class BackupArchivePolicyTest {
         }
     }
 
+    @Test fun refusesRestoreWhenDatabasePhotoIsMissingFromArchive() {
+        assertTrue(BackupArchivePolicy.photoArchiveMatchesDatabase(false, false))
+        assertTrue(BackupArchivePolicy.photoArchiveMatchesDatabase(false, true))
+        assertTrue(BackupArchivePolicy.photoArchiveMatchesDatabase(true, true))
+        assertFalse(BackupArchivePolicy.photoArchiveMatchesDatabase(true, false))
+    }
+
     @Test fun detectsDuplicateArchiveEntries() {
         val seen = setOf("farm.db", "photos/a.jpg")
         assertTrue(BackupArchivePolicy.isDuplicateEntry(seen, "farm.db"))
