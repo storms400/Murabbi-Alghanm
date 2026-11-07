@@ -192,7 +192,8 @@ private fun SecureFarmEntry(vm: FarmViewModel, dao: FarmDao, lockRequested: Bool
             Column(
                 Modifier.fillMaxSize()
                     .background(Brush.verticalGradient(listOf(Color(0xFFE8F8EE), Color(0xFFF4F8FF), Color(0xFFFFF4E6))))
-                    .padding(horizontal = 22.dp, vertical = 18.dp),
+                    .padding(horizontal = 22.dp, vertical = 18.dp)
+                    .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.Center,
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
@@ -267,7 +268,11 @@ private fun SecureFarmEntry(vm: FarmViewModel, dao: FarmDao, lockRequested: Bool
                 Text("تأكيد الرمز", color = Color(0xFF526A5D), style = MaterialTheme.typography.labelLarge)
                 PinDigitPad(pin = confirmation, onPinChange = { confirmation = it }, enabled = !saving)
             }
-            Button(enabled=!saving, modifier=Modifier.fillMaxWidth(), onClick={
+            Button(
+                enabled = !saving,
+                modifier = Modifier.fillMaxWidth().height(54.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF13864D)),
+                onClick={
                 if(pin.length !in 4..8) message="يجب أن يتكون الرمز من 4 إلى 8 أرقام."
                 else if(owner==null) {
                     if(pin!=confirmation) message="الرمزان غير متطابقين."
