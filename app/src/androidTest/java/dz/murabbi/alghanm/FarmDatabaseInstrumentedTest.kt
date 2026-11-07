@@ -50,7 +50,6 @@ class FarmDatabaseInstrumentedTest {
         val good = MedicineStock(medicineName = "دواء اختبار", quantity = 5.0,
             minimumQuantity = 2.0, expiryDate = "2027-01-01")
         assertTrue(dao.addMedicineStockSafely(good))
-        val auditBefore = dao.auditEntries()
         val snapshot = dao.medicineStockOnce()
         assertEquals(1, snapshot.size)
         assertEquals(5.0, snapshot.single().quantity, 0.0)
