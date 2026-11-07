@@ -132,7 +132,7 @@ jobs:
           p = Path("app/build.gradle.kts")
           s = p.read_text()
           branch = os.environ.get("GITHUB_REF_NAME")
-          expected = ("dz.murabbi.alghanm.mawashi.prov1420261107"
+          expected = ("dz.murabbi.alghanm.mawashi.prov1520261107"
                       if branch == "mawashi-pro-v15-backup-e2e-20261107"
                       else "dz.murabbi.alghanm.mawashi.prov1420261107"
                       if branch == "mawashi-pro-v14-backup-reliability-20261107"
@@ -191,7 +191,7 @@ jobs:
           s = Path("app/build.gradle.kts").read_text()
           m = re.search(r'applicationId\s*=\s*"([^"]+)"', s)
           branch = os.environ.get("GITHUB_REF_NAME")
-          expected = ("dz.murabbi.alghanm.mawashi.prov1420261107"
+          expected = ("dz.murabbi.alghanm.mawashi.prov1520261107"
                       if branch == "mawashi-pro-v15-backup-e2e-20261107"
                       else "dz.murabbi.alghanm.mawashi.prov1420261107"
                       if branch == "mawashi-pro-v14-backup-reliability-20261107"
