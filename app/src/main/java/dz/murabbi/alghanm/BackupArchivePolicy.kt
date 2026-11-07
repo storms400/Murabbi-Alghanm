@@ -9,13 +9,10 @@ internal object BackupArchivePolicy {
             name.contains('\\') || name.contains('\u0000') || name.contains(':')) return false
         val segments = name.split('/')
         return segments.none { it.isBlank() || it == "." || it == ".." } &&
-            segments.all { segment ->
-                segment.all { ch -> ch.isLetterOrDigit() || ch in "._-" }
-            }
+            segments.all { segment -> segment.all { ch -> ch.isLetterOrDigit() || ch in "._-" } }
     }
 
-    fun supportedPhotoExtension(extension: String): Boolean =
-        extension.lowercase() in photoExtensions
+    fun supportedPhotoExtension(extension: String): Boolean = extension.lowercase() in photoExtensions
 
     fun safePhotoEntry(name: String): Boolean {
         if (!safeEntryName(name) || !name.startsWith("photos/")) return false
@@ -26,9 +23,23 @@ internal object BackupArchivePolicy {
         return base.isNotBlank() && supportedPhotoExtension(extension)
     }
 
-    /** A DB photo reference must always have its corresponding archived image. */
     fun photoArchiveMatchesDatabase(hasStoredPhoto: Boolean, hasArchivedPhoto: Boolean): Boolean =
         !hasStoredPhoto || hasArchivedPhoto
+
+    /**
+     * Each DB photo reference must have exactly one archive image, and the archive
+     * must not contain orphan photos. Names are the leaf filenames from photos/.
+     */
+    fun photoEntriesMatchAnimals(expectedPhotoTags: Set<String>, archivedNames: List<String>): Boolean {
+        if (archivedNames.distinct().size != archivedNames.size) return false
+        val matched = mutableSetOf<String>()
+        for (name in archivedNames) {
+            if (!safePhotoEntry("photos/$name")) return false
+            val base = name.substringBeforeLast('.', "")
+            if (base !in expectedPhotoTags || !matched.add(base)) return false
+        }
+        return matched == expectedPhotoTags
+    }
 
     fun isDuplicateEntry(seen: Set<String>, name: String): Boolean = name in seen
 
