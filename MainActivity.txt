@@ -655,10 +655,10 @@ class FarmViewModel(private val dao: FarmDao) : ViewModel() {
     }
 
     fun addVaccineRecord(record: VaccineDoseRecord, onResult: (Boolean) -> Unit) {
-        viewModelScope.launch { onResult(runCatching { dao.addVaccineRecord(record) }.isSuccess) }
+        viewModelScope.launch { onResult(runCatching { dao.addVaccineRecordAudited(record) }.isSuccess) }
     }
     fun addVaccineCampaign(campaign: VaccineCampaign, onResult: (Boolean) -> Unit) {
-        viewModelScope.launch { onResult(runCatching { dao.addVaccineCampaign(campaign) }.isSuccess) }
+        viewModelScope.launch { onResult(runCatching { dao.addVaccineCampaignAudited(campaign) }.isSuccess) }
     }
 
     fun addTreatment(record: TreatmentRecord, onResult: (Boolean) -> Unit) {
@@ -672,7 +672,7 @@ class FarmViewModel(private val dao: FarmDao) : ViewModel() {
     }
 
     fun saveCareStatus(status: AnimalCareStatus, onResult: (Boolean) -> Unit) {
-        viewModelScope.launch { onResult(runCatching { dao.saveAnimalCareStatus(status) }.isSuccess) }
+        viewModelScope.launch { onResult(runCatching { dao.saveAnimalCareStatusAudited(status) }.isSuccess) }
     }
 }
 
