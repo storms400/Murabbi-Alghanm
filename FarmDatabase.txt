@@ -248,6 +248,22 @@ abstract class FarmDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     abstract suspend fun saveAnimalCareStatus(status: AnimalCareStatus)
 
+    @Transaction open suspend fun addVaccineRecordAudited(record: VaccineDoseRecord) {
+        addVaccineRecord(record)
+        addAuditEntry(AuditEntry(action = "إضافة", recordType = "جرعة لقاح",
+            recordId = record.animalTag, details = "${record.vaccineName} • ${record.administeredDate} • دفعة ${record.batchNumber}"))
+    }
+    @Transaction open suspend fun addVaccineCampaignAudited(campaign: VaccineCampaign) {
+        addVaccineCampaign(campaign)
+        addAuditEntry(AuditEntry(action = "إضافة", recordType = "حملة تطعيم",
+            details = "${campaign.name} • ${campaign.startDate} • ${campaign.targetGroup}"))
+    }
+    @Transaction open suspend fun saveAnimalCareStatusAudited(status: AnimalCareStatus) {
+        saveAnimalCareStatus(status)
+        addAuditEntry(AuditEntry(action = "تحديث", recordType = "حالة رعاية",
+            recordId = status.animalTag, details = status.status))
+    }
+
     @Insert abstract suspend fun addTreatment(record: TreatmentRecord)
     @Update abstract suspend fun updateTreatment(record: TreatmentRecord)
     @Query("DELETE FROM treatment_records WHERE id = :id") abstract suspend fun deleteTreatment(id: Long)
