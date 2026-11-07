@@ -30,14 +30,14 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 /**
- * Streaming, password-encrypted V13 backup. No database, photo, archive or
+ * Streaming, password-encrypted V14 backup. No database, photo, archive or
  * ciphertext is loaded wholesale into memory. The DB is staged and validated
  * before the live database is replaced.
  */
 object MawashiBackup {
     private val magic = "MWB12".toByteArray(Charsets.US_ASCII)
     private const val MAX_BACKUP_BYTES = 150L * 1024L * 1024L
-    private const val DB_NAME = "mawashi_pro_v13_standalone20261106.db"
+    private const val DB_NAME = "mawashi_pro_v14_standalone20261107.db"
     private const val ROOM_VERSION = 9
     private val requiredTables = setOf(
         "animals", "feed_purchases", "feed_consumptions", "farm_tasks",
@@ -95,7 +95,7 @@ object MawashiBackup {
     suspend fun restoreEncrypted(context: Context, source: Uri, password: String) =
         withContext(Dispatchers.IO) {
             require(password.length >= 12) { "كلمة المرور غير صالحة." }
-            val work = File(context.cacheDir, "mawashi-v12-restore-${System.currentTimeMillis()}").apply { mkdirs() }
+            val work = File(context.cacheDir, "mawashi-v14-restore-${System.currentTimeMillis()}").apply { mkdirs() }
             val plainZip = File(work, "decrypted.zip")
             val stagedDb = File(work, "farm.db")
             val photoDir = File(work, "photos").apply { mkdirs() }
@@ -109,7 +109,7 @@ object MawashiBackup {
                     val header = ByteArray(magic.size + 16 + 12)
                     input.readFully(header)
                     require(header.copyOfRange(0, magic.size).contentEquals(magic)) {
-                        "صيغة النسخة غير معروفة أو ليست نسخة مواشي V13."
+                        "صيغة النسخة غير معروفة أو ليست نسخة مواشي V14."
                     }
                     val salt = header.copyOfRange(magic.size, magic.size + 16)
                     val iv = header.copyOfRange(magic.size + 16, header.size)
@@ -168,19 +168,20 @@ object MawashiBackup {
                         val photo = photoDir.listFiles()?.firstOrNull {
                             it.name.startsWith(prefix) && isSupportedPhotoEntry("photos/" + it.name)
                         }
+                        require(BackupArchivePolicy.photoArchiveMatchesDatabase(
+                            hasStoredPhoto = animal.photoUri.isNotBlank(),
+                            hasArchivedPhoto = photo != null
+                        )) {
+                            "الصورة المرتبطة بالحيوان ${animal.tag} غير موجودة في النسخة؛ أُلغيت الاستعادة لحماية البيانات."
+                        }
                         if (photo != null) {
                             val extension = photo.extension.lowercase()
                             val mime = mimeForExtension(extension)
                                 ?: error("صيغة صورة مستعادة غير مدعومة: $extension")
-                            val photoUri = publishPhoto(context, animal.tag, photo, mime, extension)
-                            if (photoUri != null) {
-                                createdMedia.add(photoUri)
-                                restoredDao.updateAnimalPhoto(animal.tag, photoUri.toString())
-                            } else {
-                                restoredDao.updateAnimalPhoto(animal.tag, "")
+                            val photoUri = publishPhoto(context, animal.tag, photo, mime, extension) {
+                                createdMedia.add(it)
                             }
-                        } else if (animal.photoUri.isNotBlank()) {
-                            restoredDao.updateAnimalPhoto(animal.tag, "")
+                            restoredDao.updateAnimalPhoto(animal.tag, photoUri.toString())
                         }
                     }
                     FarmDatabase.get(context).openHelper.writableDatabase.query("PRAGMA integrity_check").use { cursor ->
@@ -211,7 +212,7 @@ object MawashiBackup {
             }
             db.rawQuery("PRAGMA user_version", null).use { c ->
                 require(c.moveToFirst() && c.getInt(0) == ROOM_VERSION) {
-                    "إصدار قاعدة البيانات غير متوافق مع مواشي V13."
+                    "إصدار قاعدة البيانات غير متوافق مع مواشي V14."
                 }
             }
             val tables = mutableSetOf<String>()
@@ -226,26 +227,29 @@ object MawashiBackup {
         }
     }
 
-    private fun publishPhoto(context: Context, tag: String, file: File, mime: String, extension: String): Uri? =
-        runCatching {
-            val values = ContentValues().apply {
-                put(MediaStore.Images.Media.DISPLAY_NAME, "Mawashi-$tag.$extension")
-                put(MediaStore.Images.Media.MIME_TYPE, mime)
-                if (Build.VERSION.SDK_INT >= 29)
-                    put(MediaStore.Images.Media.RELATIVE_PATH, Environment.DIRECTORY_PICTURES + "/Mawashi")
-            }
-            val uri = context.contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
-                ?: return@runCatching null
-            try {
-                context.contentResolver.openOutputStream(uri, "w")?.use { out ->
-                    file.inputStream().buffered().use { it.copyTo(out) }
-                } ?: error("تعذر كتابة الصورة المستعادة.")
-                uri
-            } catch (failure: Exception) {
-                context.contentResolver.delete(uri, null, null)
-                throw failure
-            }
-        }.getOrNull()
+    private fun publishPhoto(
+        context: Context,
+        tag: String,
+        file: File,
+        mime: String,
+        extension: String,
+        onCreated: (Uri) -> Unit
+    ): Uri {
+        val values = ContentValues().apply {
+            put(MediaStore.Images.Media.DISPLAY_NAME, "Mawashi-$tag.$extension")
+            put(MediaStore.Images.Media.MIME_TYPE, mime)
+            if (Build.VERSION.SDK_INT >= 29)
+                put(MediaStore.Images.Media.RELATIVE_PATH, Environment.DIRECTORY_PICTURES + "/Mawashi")
+        }
+        val uri = context.contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
+            ?: error("تعذر إنشاء ملف الصورة المستعادة للحيوان $tag.")
+        // Track the MediaStore row before writing so the outer rollback can always clean it up.
+        onCreated(uri)
+        context.contentResolver.openOutputStream(uri, "w")?.use { out ->
+            file.inputStream().buffered().use { it.copyTo(out) }
+        } ?: error("تعذر فتح ملف الصورة المستعادة للحيوان $tag.")
+        return uri
+    }
 
     private fun safeTag(tag: String): String =
         Base64.getUrlEncoder().withoutPadding().encodeToString(tag.toByteArray(Charsets.UTF_8))
