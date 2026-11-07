@@ -38,6 +38,7 @@ name: Build Android APK
       - "mawashi-pro-v13-backup-assurance-20261106"
       - "mawashi-pro-v14-backup-reliability-20261107"
       - "mawashi-pro-v15-backup-e2e-20261107"
+      - "mawashi-pro-v16-backup-pin-ui-20261107"
 
 jobs:
   build:
@@ -132,7 +133,9 @@ jobs:
           p = Path("app/build.gradle.kts")
           s = p.read_text()
           branch = os.environ.get("GITHUB_REF_NAME")
-          expected = ("dz.murabbi.alghanm.mawashi.prov1520261107"
+          expected = ("dz.murabbi.alghanm.mawashi.prov1620261107"
+                      if branch == "mawashi-pro-v16-backup-pin-ui-20261107"
+                      else "dz.murabbi.alghanm.mawashi.prov1520261107"
                       if branch == "mawashi-pro-v15-backup-e2e-20261107"
                       else "dz.murabbi.alghanm.mawashi.prov1420261107"
                       if branch == "mawashi-pro-v14-backup-reliability-20261107"
@@ -191,7 +194,9 @@ jobs:
           s = Path("app/build.gradle.kts").read_text()
           m = re.search(r'applicationId\s*=\s*"([^"]+)"', s)
           branch = os.environ.get("GITHUB_REF_NAME")
-          expected = ("dz.murabbi.alghanm.mawashi.prov1520261107"
+          expected = ("dz.murabbi.alghanm.mawashi.prov1620261107"
+                      if branch == "mawashi-pro-v16-backup-pin-ui-20261107"
+                      else "dz.murabbi.alghanm.mawashi.prov1520261107"
                       if branch == "mawashi-pro-v15-backup-e2e-20261107"
                       else "dz.murabbi.alghanm.mawashi.prov1420261107"
                       if branch == "mawashi-pro-v14-backup-reliability-20261107"
@@ -248,7 +253,7 @@ jobs:
           gradle --no-daemon :app:testDebugUnitTest
           grep -q "BackupCryptoTest" app/src/test/java/dz/murabbi/alghanm/BackupCryptoTest.kt
           grep -q "encryptingStream" app/src/main/java/dz/murabbi/alghanm/BackupCrypto.kt
-          echo "VERIFIED V15 BACKUP ROUNDTRIP, WRONG-PASSWORD, TAMPER AND SIZE-LIMIT TESTS"
+          echo "VERIFIED V16 BACKUP CRYPTO AND PIN UI TESTS"
 
       - name: Build APK
         run: gradle --no-daemon :app:assembleDebug
@@ -263,14 +268,14 @@ jobs:
             exit 1
           fi
           ACTUAL_PACKAGE="$("$AAPT" dump badging "$APK" | sed -n "s/^package: name='\\([^']*\\)'.*/\\1/p" | head -n 1)"
-          EXPECTED_PACKAGE="dz.murabbi.alghanm.mawashi.prov1520261107"
+          EXPECTED_PACKAGE="dz.murabbi.alghanm.mawashi.prov1620261107"
           if [ "$ACTUAL_PACKAGE" != "$EXPECTED_PACKAGE" ]; then
             echo "ERROR: APK package is $ACTUAL_PACKAGE, expected $EXPECTED_PACKAGE"
             exit 1
           fi
-          grep -q '"mawashi_pro_v15_standalone20261107.db"' app/src/main/java/dz/murabbi/alghanm/data/FarmDatabase.kt
+          grep -q '"mawashi_pro_v16_standalone20261107.db"' app/src/main/java/dz/murabbi/alghanm/data/FarmDatabase.kt
           echo "VERIFIED APK PACKAGE: $ACTUAL_PACKAGE"
-          echo "VERIFIED DATABASE: mawashi_pro_v15_standalone20261107.db"
+          echo "VERIFIED DATABASE: mawashi_pro_v16_standalone20261107.db"
           grep -q "PBKDF2WithHmacSHA256" app/src/main/java/dz/murabbi/alghanm/security/PinSecurity.kt
           grep -q "newRecoveryCode" MainActivity.txt
           grep -q "recoveryHash" MainActivity.txt
@@ -284,7 +289,7 @@ jobs:
           grep -q "photos/" app/src/main/java/dz/murabbi/alghanm/MawashiBackup.kt
           grep -q "PinSecurityTest" app/src/test/java/dz/murabbi/alghanm/security/PinSecurityTest.kt
           grep -q "activeOwner()" FarmDatabase.txt
-          grep -q "mawashi_pro_v15_standalone20261107.db" FarmDatabase.txt
+          grep -q "mawashi_pro_v16_standalone20261107.db" FarmDatabase.txt
           echo "VERIFIED V10 LOCAL PIN GATE AND ISOLATED DATABASE"
           grep -q "addReproductionWithOffspring" FarmDatabase.txt
           grep -q "offspringTags" MainActivity.txt
@@ -318,5 +323,5 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: Mawashi-Pro-V15-Standalone-20261107-APK
+          name: Mawashi-Pro-V16-Standalone-20261107-APK
           path: app/build/outputs/apk/debug/app-debug.apk
