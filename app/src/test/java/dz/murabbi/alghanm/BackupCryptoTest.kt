@@ -56,6 +56,26 @@ class BackupCryptoTest {
         catch (_: Exception) { }
     }
 
+    @Test fun rejectsTruncatedEnvelopeBeforeDecrypting() {
+        val shortHeader = BackupCrypto.MAGIC.copyOf()
+        try {
+            decrypt(shortHeader)
+            fail("truncated header accepted")
+        } catch (_: IllegalArgumentException) { }
+    }
+
+    @Test fun rejectsEmptyAndTooShortPasswords() {
+        try {
+            BackupCrypto.encryptingStream(ByteArrayOutputStream(), "short")
+            fail("short password accepted")
+        } catch (_: IllegalArgumentException) { }
+        try {
+            BackupCrypto.decryptTo(ByteArrayInputStream(byteArrayOf()), ByteArrayOutputStream(),
+                "short", 100, 100)
+            fail("short password accepted")
+        } catch (_: IllegalArgumentException) { }
+    }
+
     @Test fun cipherAndPlaintextSizeLimitsAreEnforced() {
         val bytes = encryptedArchive()
         try {
