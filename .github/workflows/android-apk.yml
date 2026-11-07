@@ -308,6 +308,10 @@ jobs:
           grep -q "MedicineStockAlertReceiver" MainActivity.txt
           grep -q "addMedicineStockSafely" FarmDatabase.txt
           grep -q "minimumQuantity = medicineMinimum" MainActivity.txt
+          test -f app/src/main/java/dz/murabbi/alghanm/MedicineStockAlertPolicy.kt
+          test -f app/src/test/java/dz/murabbi/alghanm/MedicineStockAlertPolicyTest.kt
+          grep -q "expiryWithinThirtyDaysAlertsButDayThirtyOneDoesNot" app/src/test/java/dz/murabbi/alghanm/MedicineStockAlertPolicyTest.kt
+          echo "VERIFIED V18 MEDICINE ALERT BOUNDARY UNIT TESTS"
           echo "VERIFIED V18 MEDICINE ALERTS AND ISOLATED BACKUP DATABASE"
           echo "VERIFIED V10 LOCAL PIN GATE AND ISOLATED DATABASE"
           grep -q "addReproductionWithOffspring" FarmDatabase.txt
