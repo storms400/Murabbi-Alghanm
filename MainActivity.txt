@@ -131,16 +131,7 @@ class MedicineStockAlertReceiver : BroadcastReceiver() {
                 val items = kotlinx.coroutines.runBlocking {
                     FarmDatabase.get(context).farmDao().medicineStockOnce()
                 }
-                val today = LocalDate.now()
-                val alerts = items.mapNotNull { item ->
-                    val expiry = runCatching { LocalDate.parse(item.expiryDate) }.getOrNull() ?: return@mapNotNull null
-                    when {
-                        expiry.isBefore(today) -> "${item.medicineName}: منتهي الصلاحية"
-                        item.quantity <= item.minimumQuantity -> "${item.medicineName}: المخزون منخفض (${item.quantity} ${item.unit})"
-                        ChronoUnit.DAYS.between(today, expiry) in 0..30 -> "${item.medicineName}: تنتهي صلاحيته خلال 30 يوماً"
-                        else -> null
-                    }
-                }
+                val alerts = MedicineStockAlertPolicy.alerts(items, LocalDate.now())
                 if (alerts.isNotEmpty()) {
                     val channel = "mawashi_medicine_stock"
                     val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as android.app.NotificationManager
