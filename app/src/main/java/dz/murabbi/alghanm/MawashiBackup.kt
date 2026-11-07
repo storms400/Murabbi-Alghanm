@@ -28,7 +28,7 @@ import kotlinx.coroutines.withContext
 object MawashiBackup {
     private val magic = BackupCrypto.MAGIC
     private const val MAX_BACKUP_BYTES = 150L * 1024L * 1024L
-    private const val DB_NAME = "mawashi_pro_v18_standalone20261107.db"
+    private const val DB_NAME = "mawashi_pro_v19_standalone20261107.db"
     private const val ROOM_VERSION = 10
     private val requiredTables = setOf(
         "animals", "feed_purchases", "feed_consumptions", "farm_tasks",
@@ -79,7 +79,7 @@ object MawashiBackup {
     suspend fun restoreEncrypted(context: Context, source: Uri, password: String) =
         withContext(Dispatchers.IO) {
             require(password.length >= 12) { "كلمة المرور غير صالحة." }
-            val work = File(context.cacheDir, "mawashi-v18-restore-${System.currentTimeMillis()}").apply { mkdirs() }
+            val work = File(context.cacheDir, "mawashi-v19-restore-${System.currentTimeMillis()}").apply { mkdirs() }
             val plainZip = File(work, "decrypted.zip")
             val stagedDb = File(work, "farm.db")
             val photoDir = File(work, "photos").apply { mkdirs() }
@@ -205,7 +205,7 @@ object MawashiBackup {
             }
             db.rawQuery("PRAGMA user_version", null).use { c ->
                 require(c.moveToFirst() && c.getInt(0) == ROOM_VERSION) {
-                    "إصدار قاعدة البيانات غير متوافق مع مواشي V18."
+                    "إصدار قاعدة البيانات غير متوافق مع مواشي V19."
                 }
             }
             val tables = mutableSetOf<String>()
