@@ -10,34 +10,25 @@ import android.provider.MediaStore
 import android.webkit.MimeTypeMap
 import dz.murabbi.alghanm.data.FarmDao
 import dz.murabbi.alghanm.data.FarmDatabase
-import java.io.BufferedInputStream
-import java.io.BufferedOutputStream
 import java.io.File
 import java.io.InputStream
 import java.io.OutputStream
-import java.security.SecureRandom
 import java.util.Base64
 import java.util.zip.ZipEntry
 import java.util.zip.ZipInputStream
 import java.util.zip.ZipOutputStream
-import javax.crypto.Cipher
-import javax.crypto.CipherOutputStream
-import javax.crypto.SecretKeyFactory
-import javax.crypto.spec.GCMParameterSpec
-import javax.crypto.spec.PBEKeySpec
-import javax.crypto.spec.SecretKeySpec
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 /**
- * Streaming, password-encrypted V14 backup. No database, photo, archive or
+ * Streaming, password-encrypted V15 backup. No database, photo, archive or
  * ciphertext is loaded wholesale into memory. The DB is staged and validated
  * before the live database is replaced.
  */
 object MawashiBackup {
-    private val magic = "MWB12".toByteArray(Charsets.US_ASCII)
+    private val magic = BackupCrypto.MAGIC
     private const val MAX_BACKUP_BYTES = 150L * 1024L * 1024L
-    private const val DB_NAME = "mawashi_pro_v14_standalone20261107.db"
+    private const val DB_NAME = "mawashi_pro_v15_standalone20261107.db"
     private const val ROOM_VERSION = 9
     private val requiredTables = setOf(
         "animals", "feed_purchases", "feed_consumptions", "farm_tasks",
@@ -60,14 +51,7 @@ object MawashiBackup {
                 val output = context.contentResolver.openOutputStream(destination, "w")
                     ?: error("تعذر إنشاء ملف النسخة الاحتياطية.")
                 output.use { raw ->
-                    val salt = ByteArray(16).also(SecureRandom()::nextBytes)
-                    val iv = ByteArray(12).also(SecureRandom()::nextBytes)
-                    raw.write(magic)
-                    raw.write(salt)
-                    raw.write(iv)
-                    val cipher = Cipher.getInstance("AES/GCM/NoPadding")
-                    cipher.init(Cipher.ENCRYPT_MODE, deriveKey(password, salt), GCMParameterSpec(128, iv))
-                    val encrypted = CipherOutputStream(BufferedOutputStream(raw), cipher)
+                    val encrypted = BackupCrypto.encryptingStream(raw, password)
                     ZipOutputStream(encrypted).use { zip ->
                             var totalPayload = 0L
                             zip.putNextEntry(ZipEntry("farm.db"))
@@ -95,7 +79,7 @@ object MawashiBackup {
     suspend fun restoreEncrypted(context: Context, source: Uri, password: String) =
         withContext(Dispatchers.IO) {
             require(password.length >= 12) { "كلمة المرور غير صالحة." }
-            val work = File(context.cacheDir, "mawashi-v14-restore-${System.currentTimeMillis()}").apply { mkdirs() }
+            val work = File(context.cacheDir, "mawashi-v15-restore-${System.currentTimeMillis()}").apply { mkdirs() }
             val plainZip = File(work, "decrypted.zip")
             val stagedDb = File(work, "farm.db")
             val photoDir = File(work, "photos").apply { mkdirs() }
@@ -106,16 +90,9 @@ object MawashiBackup {
                 val raw = context.contentResolver.openInputStream(source)
                     ?: error("تعذرت قراءة ملف النسخة الاحتياطية.")
                 raw.use { input ->
-                    val header = ByteArray(magic.size + 16 + 12)
-                    input.readFully(header)
-                    require(header.copyOfRange(0, magic.size).contentEquals(magic)) {
-                        "صيغة النسخة غير معروفة أو ليست نسخة مواشي V14."
+                    plainZip.outputStream().buffered().use { staged ->
+                        BackupCrypto.decryptTo(input, staged, password, MAX_BACKUP_BYTES, MAX_BACKUP_BYTES)
                     }
-                    val salt = header.copyOfRange(magic.size, magic.size + 16)
-                    val iv = header.copyOfRange(magic.size + 16, header.size)
-                    val cipher = Cipher.getInstance("AES/GCM/NoPadding")
-                    cipher.init(Cipher.DECRYPT_MODE, deriveKey(password, salt), GCMParameterSpec(128, iv))
-                    decryptToFile(input, plainZip, cipher)
                 }
 
                 var databaseSeen = false
@@ -212,7 +189,7 @@ object MawashiBackup {
             }
             db.rawQuery("PRAGMA user_version", null).use { c ->
                 require(c.moveToFirst() && c.getInt(0) == ROOM_VERSION) {
-                    "إصدار قاعدة البيانات غير متوافق مع مواشي V14."
+                    "إصدار قاعدة البيانات غير متوافق مع مواشي V15."
                 }
             }
             val tables = mutableSetOf<String>()
@@ -265,40 +242,6 @@ object MawashiBackup {
         if (extension in setOf("jpg", "jpeg", "png", "webp", "gif", "heic", "heif"))
             MimeTypeMap.getSingleton().getMimeTypeFromExtension(extension) else null
 
-    private fun deriveKey(password: String, salt: ByteArray): SecretKeySpec {
-        val spec = PBEKeySpec(password.toCharArray(), salt, 250_000, 256)
-        val bytes = try {
-            SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256").generateSecret(spec).encoded
-        } finally { spec.clearPassword() }
-        return SecretKeySpec(bytes, "AES")
-    }
-
-    private fun decryptToFile(input: InputStream, destination: File, cipher: Cipher) {
-        val bounded = CountingInputStream(input, MAX_BACKUP_BYTES)
-        BufferedInputStream(bounded).use { source ->
-            destination.outputStream().buffered().use { target ->
-                val buffer = ByteArray(8192)
-                var total = 0L
-                while (true) {
-                    val count = source.read(buffer)
-                    if (count < 0) break
-                    val decoded = cipher.update(buffer, 0, count)
-                    if (decoded != null && decoded.isNotEmpty()) {
-                        total += decoded.size
-                        require(total <= MAX_BACKUP_BYTES) { "حجم البيانات بعد فك التشفير تجاوز الحد." }
-                        target.write(decoded)
-                    }
-                }
-                // doFinal authenticates the GCM tag; wrong passwords and tampering fail here.
-                val finalBytes = cipher.doFinal()
-                if (finalBytes.isNotEmpty()) {
-                    total += finalBytes.size
-                    require(total <= MAX_BACKUP_BYTES) { "حجم البيانات بعد فك التشفير تجاوز الحد." }
-                    target.write(finalBytes)
-                }
-            }
-        }
-    }
     private fun InputStream.readFully(target: ByteArray) {
         var offset = 0
         while (offset < target.size) {
