@@ -304,6 +304,17 @@ abstract class FarmDao {
         return true
     }
     @Query("SELECT * FROM medicine_stock ORDER BY expiryDate ASC, id DESC") abstract fun medicineStock(): Flow<List<MedicineStock>>
+    @Query("SELECT * FROM medicine_stock ORDER BY expiryDate ASC, id DESC") abstract suspend fun medicineStockOnce(): List<MedicineStock>
+    @Transaction open suspend fun addMedicineStockSafely(item: MedicineStock): Boolean {
+        if (item.medicineName.isBlank() || item.quantity <= 0.0 ||
+            item.quantity.isNaN() || item.quantity.isInfinite() ||
+            item.minimumQuantity < 0.0 || item.minimumQuantity.isNaN() || item.minimumQuantity.isInfinite()) return false
+        if (runCatching { java.time.LocalDate.parse(item.expiryDate) }.isFailure) return false
+        addMedicineStock(item)
+        addAuditEntry(AuditEntry(action = "إضافة", recordType = "مخزون دواء",
+            details = "${item.medicineName} • كمية: ${item.quantity} • حد التنبيه: ${item.minimumQuantity} • صلاحية: ${item.expiryDate}"))
+        return true
+    }
     @Query("SELECT * FROM medicine_stock WHERE medicineName = :name AND quantity >= :amount AND expiryDate >= :today ORDER BY expiryDate ASC, id ASC") abstract suspend fun availableMedicineBatches(name: String, amount: Double, today: String): List<MedicineStock>
     @Query("UPDATE medicine_stock SET quantity = quantity - :amount WHERE id = :id AND quantity >= :amount AND expiryDate >= :today") abstract suspend fun deductMedicineStock(id: Long, amount: Double, today: String): Int
     @Transaction open suspend fun saveTreatmentWithStock(record: TreatmentRecord): Boolean {
