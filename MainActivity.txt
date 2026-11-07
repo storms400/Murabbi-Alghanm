@@ -20,6 +20,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.Alignment
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.clickable
@@ -188,12 +189,38 @@ private fun SecureFarmEntry(vm: FarmViewModel, dao: FarmDao, lockRequested: Bool
         // Keep SAF launchers composed while the PIN overlay is visible.
         FarmScreen(vm, dao) { unlocked = false; pin = ""; message = "تم قفل التطبيق." }
         if (!unlocked) Surface(Modifier.fillMaxSize()) {
-            Column(Modifier.fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.Center,
-                horizontalAlignment = Alignment.CenterHorizontally) {
-        Text("مواشي", style = MaterialTheme.typography.headlineLarge, color = MaterialTheme.colorScheme.primary)
-        Text(if (owner == null) "إنشاء رمز حماية" else if (recoveryMode) "استعادة الوصول" else "أدخل رمز الحماية",
-            style = MaterialTheme.typography.titleMedium)
-        Spacer(Modifier.height(16.dp))
+            Column(
+                Modifier.fillMaxSize()
+                    .background(Brush.verticalGradient(listOf(Color(0xFFE8F8EE), Color(0xFFF4F8FF), Color(0xFFFFF4E6))))
+                    .padding(horizontal = 22.dp, vertical = 18.dp),
+                verticalArrangement = Arrangement.Center,
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.96f)),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 10.dp)
+                ) {
+                    Column(
+                        Modifier.fillMaxWidth().padding(horizontal = 22.dp, vertical = 24.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Box(
+                            Modifier.size(76.dp).background(
+                                Brush.linearGradient(listOf(Color(0xFF16A765), Color(0xFF087E8B))),
+                                CircleShape
+                            ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text("م", color = Color.White, style = MaterialTheme.typography.headlineLarge)
+                        }
+                        Spacer(Modifier.height(10.dp))
+                        Text("مواشي", style = MaterialTheme.typography.headlineLarge, color = Color(0xFF126B3A))
+                        Text(
+                            if (owner == null) "حماية بيانات قطيعك تبدأ هنا" else if (recoveryMode) "استعادة الوصول بأمان" else "أهلاً بك، أدخل رمز الحماية",
+                            style = MaterialTheme.typography.bodyMedium, color = Color(0xFF60766A)
+                        )
+                        Spacer(Modifier.height(20.dp))
         if (owner != null && recoveryMode) {
             OutlinedTextField(value=recoveryCode, onValueChange={ recoveryCode=it.filter(Char::isLetterOrDigit).take(24) },
                 label={Text("رمز الاسترداد")}, singleLine=true, modifier=Modifier.fillMaxWidth())
@@ -207,7 +234,11 @@ private fun SecureFarmEntry(vm: FarmViewModel, dao: FarmDao, lockRequested: Bool
                 visualTransformation=androidx.compose.ui.text.input.PasswordVisualTransformation(),
                 keyboardOptions=androidx.compose.foundation.text.KeyboardOptions(keyboardType=androidx.compose.ui.text.input.KeyboardType.NumberPassword),
                 modifier=Modifier.fillMaxWidth())
-            Button(enabled=!saving, modifier=Modifier.fillMaxWidth(), onClick={
+            Button(
+                enabled = !saving,
+                modifier = Modifier.fillMaxWidth().height(54.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF13864D)),
+                onClick={
                 val current = owner
                 if (current == null || current.recoveryHash.isBlank()) message = "لا يوجد رمز استرداد مهيأ. افتح التطبيق بالرمز الحالي أولاً."
                 else if (!verifyPin(recoveryCode.uppercase(Locale.ROOT), current.recoveryHash)) message = "رمز الاسترداد غير صحيح."
@@ -230,16 +261,12 @@ private fun SecureFarmEntry(vm: FarmViewModel, dao: FarmDao, lockRequested: Bool
             }) { Text("إعادة تعيين PIN") }
             TextButton(onClick={ recoveryMode=false; recoveryCode=""; message="" }) { Text("العودة لتسجيل الدخول") }
         } else {
-            OutlinedTextField(value=pin, onValueChange={ if(it.length<=8 && it.all(Char::isDigit)) pin=it },
-                label={Text("رمز PIN من 4 إلى 8 أرقام")}, singleLine=true,
-                visualTransformation=androidx.compose.ui.text.input.PasswordVisualTransformation(),
-                keyboardOptions=androidx.compose.foundation.text.KeyboardOptions(keyboardType=androidx.compose.ui.text.input.KeyboardType.NumberPassword),
-                modifier=Modifier.fillMaxWidth())
-            if (owner == null) OutlinedTextField(value=confirmation, onValueChange={ if(it.length<=8 && it.all(Char::isDigit)) confirmation=it },
-                label={Text("تأكيد الرمز")}, singleLine=true,
-                visualTransformation=androidx.compose.ui.text.input.PasswordVisualTransformation(),
-                keyboardOptions=androidx.compose.foundation.text.KeyboardOptions(keyboardType=androidx.compose.ui.text.input.KeyboardType.NumberPassword),
-                modifier=Modifier.fillMaxWidth())
+            PinDigitPad(pin = pin, onPinChange = { pin = it }, enabled = !saving)
+            if (owner == null) {
+                Spacer(Modifier.height(12.dp))
+                Text("تأكيد الرمز", color = Color(0xFF526A5D), style = MaterialTheme.typography.labelLarge)
+                PinDigitPad(pin = confirmation, onPinChange = { confirmation = it }, enabled = !saving)
+            }
             Button(enabled=!saving, modifier=Modifier.fillMaxWidth(), onClick={
                 if(pin.length !in 4..8) message="يجب أن يتكون الرمز من 4 إلى 8 أرقام."
                 else if(owner==null) {
@@ -291,7 +318,9 @@ private fun SecureFarmEntry(vm: FarmViewModel, dao: FarmDao, lockRequested: Bool
             if(owner!=null) TextButton(onClick={ recoveryMode=true; message="" }) { Text("نسيت رمز PIN؟ استعادة") }
         }
         if(message.isNotBlank()) Text(message,color=MaterialTheme.colorScheme.error)
-        Text("قفل تلقائي عند مغادرة التطبيق، مع تقييد المحاولات.",style=MaterialTheme.typography.bodySmall)
+                        Text("قفل تلقائي عند مغادرة التطبيق • حماية من المحاولات المتكررة", style = MaterialTheme.typography.bodySmall, color = Color(0xFF718579))
+                    }
+                }
             }
         }
     }
@@ -310,6 +339,70 @@ private fun SecureFarmEntry(vm: FarmViewModel, dao: FarmDao, lockRequested: Bool
         }},
         confirmButton={TextButton(onClick={oneTimeRecovery=""}) { Text("حفظته") }}
     )
+}
+
+@Composable
+private fun PinDigitPad(pin: String, onPinChange: (String) -> Unit, enabled: Boolean = true) {
+    val rows = listOf(listOf("1", "2", "3"), listOf("4", "5", "6"), listOf("7", "8", "9"))
+    val palette = listOf(Color(0xFF16A765), Color(0xFF168C9A), Color(0xFF3977C5), Color(0xFF8B63C7), Color(0xFFE18A35))
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            repeat(8) { index ->
+                Box(
+                    Modifier.size(12.dp).background(
+                        if (index < pin.length) Color(0xFF16A765) else Color(0xFFDCE8E0),
+                        CircleShape
+                    )
+                )
+            }
+        }
+        rows.forEachIndexed { rowIndex, row ->
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterHorizontally)
+            ) {
+                row.forEachIndexed { columnIndex, digit ->
+                    val color = palette[(rowIndex * 3 + columnIndex) % palette.size]
+                    Button(
+                        onClick = { if (pin.length < 8) onPinChange(pin + digit) },
+                        enabled = enabled && pin.length < 8,
+                        modifier = Modifier.size(66.dp),
+                        shape = CircleShape,
+                        colors = ButtonDefaults.buttonColors(containerColor = color, disabledContainerColor = color.copy(alpha = 0.35f)),
+                        contentPadding = PaddingValues(0.dp)
+                    ) { Text(digit, style = MaterialTheme.typography.titleLarge, color = Color.White) }
+                }
+            }
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterHorizontally)
+        ) {
+            OutlinedButton(
+                onClick = { onPinChange("") }, enabled = enabled && pin.isNotEmpty(),
+                modifier = Modifier.width(66.dp).height(48.dp),
+                contentPadding = PaddingValues(0.dp)
+            ) { Text("مسح", style = MaterialTheme.typography.labelSmall) }
+            Button(
+                onClick = { if (pin.length < 8) onPinChange(pin + "0") },
+                enabled = enabled && pin.length < 8,
+                modifier = Modifier.size(66.dp),
+                shape = CircleShape,
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF13864D)),
+                contentPadding = PaddingValues(0.dp)
+            ) { Text("0", style = MaterialTheme.typography.titleLarge, color = Color.White) }
+            OutlinedButton(
+                onClick = { if (pin.isNotEmpty()) onPinChange(pin.dropLast(1)) },
+                enabled = enabled && pin.isNotEmpty(),
+                modifier = Modifier.width(66.dp).height(48.dp),
+                contentPadding = PaddingValues(0.dp)
+            ) { Text("⌫", style = MaterialTheme.typography.titleLarge) }
+        }
+    }
 }
 
 class FarmViewModel(private val dao: FarmDao) : ViewModel() {
