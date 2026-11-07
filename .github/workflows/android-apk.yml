@@ -283,12 +283,12 @@ jobs:
           if anchor not in s:
               raise SystemExit("Could not locate Gradle dependency insertion point for Android tests")
           for dep in deps:
-              if dep not in s: s = s.replace(anchor, anchor + "\\n" + dep, 1)
+              if dep not in s: s = s.replace(anchor, anchor + "\n" + dep, 1)
           if 'testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"' not in s:
-              match = re.search(r'(?m)^(\\s*)defaultConfig\\s*\\{', s)
+              match = re.search(r'(?m)^(\s*)defaultConfig\s*\{', s)
               if not match: raise SystemExit("Could not locate android.defaultConfig")
               pos = match.end()
-              s = s[:pos] + '\\n        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"' + s[pos:]
+              s = s[:pos] + '\n        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"' + s[pos:]
           p.write_text(s)
           PY
           gradle --no-daemon :app:testDebugUnitTest
