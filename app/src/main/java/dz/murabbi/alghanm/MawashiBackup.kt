@@ -128,6 +128,11 @@ object MawashiBackup {
                     "النسخة لا تحتوي قاعدة بيانات صالحة."
                 }
                 validateDatabase(stagedDb)
+                val expectedPhotoTags = readStoredPhotoTags(stagedDb)
+                val archivedPhotoNames = photoDir.listFiles()?.map { it.name }.orEmpty()
+                require(BackupArchivePolicy.photoEntriesMatchAnimals(expectedPhotoTags, archivedPhotoNames)) {
+                    "صور النسخة لا تطابق صور الحيوانات المسجلة في قاعدة البيانات؛ أُلغيت الاستعادة قبل استبدال البيانات."
+                }
 
                 val live = FarmDatabase.get(context)
                 live.openHelper.writableDatabase.query("PRAGMA wal_checkpoint(FULL)").use { }
@@ -180,6 +185,17 @@ object MawashiBackup {
                 work.deleteRecursively()
             }
         }
+
+    private fun readStoredPhotoTags(file: File): Set<String> {
+        val db = SQLiteDatabase.openDatabase(file.absolutePath, null, SQLiteDatabase.OPEN_READONLY)
+        try {
+            val tags = mutableSetOf<String>()
+            db.rawQuery("SELECT tag FROM animals WHERE photoUri IS NOT NULL AND photoUri != ''", null).use { cursor ->
+                while (cursor.moveToNext()) tags.add(safeTag(cursor.getString(0)))
+            }
+            return tags
+        } finally { db.close() }
+    }
 
     private fun validateDatabase(file: File) {
         val db = SQLiteDatabase.openDatabase(file.absolutePath, null, SQLiteDatabase.OPEN_READONLY)
