@@ -106,7 +106,7 @@ data class ReproductionRecord(
     val notes: String = "", @ColumnInfo(defaultValue = "''") val offspringTags: String = ""
 )
 
-@Entity(tableName = "medicine_stock")
+@Entity(tableName = "medicine_stock", indices = [Index(value = ["expiryDate"]), Index(value = ["medicineName"])])
 data class MedicineStock(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val medicineName: String, val batchNumber: String = "", val quantity: Double,
