@@ -302,19 +302,13 @@ jobs:
           grep -q "CREATE TABLE IF NOT EXISTS vaccine_campaigns" FarmDatabase.txt
           grep -q "CREATE TABLE IF NOT EXISTS animal_care_status" FarmDatabase.txt
           echo "VERIFIED STRUCTURED VACCINATION, CAMPAIGN AND CARE TABLES"
+          grep -q "photoArchiveMatchesDatabase" app/src/main/java/dz/murabbi/alghanm/BackupArchivePolicy.kt
+          grep -q "onCreated: (Uri) -> Unit" app/src/main/java/dz/murabbi/alghanm/MawashiBackup.kt
+          grep -q "الصورة المرتبطة بالحيوان" app/src/main/java/dz/murabbi/alghanm/MawashiBackup.kt
+          echo "VERIFIED V14 FAIL-CLOSED PHOTO RESTORE AND ROLLBACK TRACKING"
+
 
       - uses: actions/upload-artifact@v4
         with:
           name: Mawashi-Pro-V14-Standalone-20261107-APK
           path: app/build/outputs/apk/debug/app-debug.apk
-
-# Rebuild the professional sheep-icon test APK
-
-# Pro standalone verification: source includes structured vaccination ledger, campaign registry and reboot reminders.
-
-# Final validation includes named-argument campaign creation.
-
-          grep -q "photoArchiveMatchesDatabase" app/src/main/java/dz/murabbi/alghanm/BackupArchivePolicy.kt
-          grep -q "onCreated: (Uri) -> Unit" app/src/main/java/dz/murabbi/alghanm/MawashiBackup.kt
-          grep -q "الصورة المرتبطة بالحيوان" app/src/main/java/dz/murabbi/alghanm/MawashiBackup.kt
-          echo "VERIFIED V14 FAIL-CLOSED PHOTO RESTORE AND ROLLBACK TRACKING"
