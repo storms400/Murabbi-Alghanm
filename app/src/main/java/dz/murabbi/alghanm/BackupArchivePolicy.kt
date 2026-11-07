@@ -26,6 +26,10 @@ internal object BackupArchivePolicy {
         return base.isNotBlank() && supportedPhotoExtension(extension)
     }
 
+    /** A DB photo reference must always have its corresponding archived image. */
+    fun photoArchiveMatchesDatabase(hasStoredPhoto: Boolean, hasArchivedPhoto: Boolean): Boolean =
+        !hasStoredPhoto || hasArchivedPhoto
+
     fun isDuplicateEntry(seen: Set<String>, name: String): Boolean = name in seen
 
     fun withinLimit(currentBytes: Long, incomingBytes: Long, maxBytes: Long): Boolean =
