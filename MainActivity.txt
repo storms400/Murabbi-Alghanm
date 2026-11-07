@@ -109,9 +109,63 @@ private fun scheduleVaccineAlarm(context: Context, tag: String, key: String, tit
     } catch (_: SecurityException) { alarm.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, millis, pending) }
 }
 
+private const val MEDICINE_STOCK_ALERT_REQUEST = 181807
+
+fun scheduleMedicineStockAlerts(context: Context) {
+    val alarm = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+    val intent = Intent(context, MedicineStockAlertReceiver::class.java)
+    val pending = PendingIntent.getBroadcast(context, MEDICINE_STOCK_ALERT_REQUEST, intent,
+        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+    val now = java.time.LocalDateTime.now()
+    var next = now.toLocalDate().atTime(8, 0)
+    if (!next.isAfter(now)) next = next.plusDays(1)
+    val first = next.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+    alarm.setInexactRepeating(AlarmManager.RTC_WAKEUP, first, AlarmManager.INTERVAL_DAY, pending)
+}
+
+class MedicineStockAlertReceiver : BroadcastReceiver() {
+    override fun onReceive(context: Context, intent: Intent) {
+        val pending = goAsync()
+        Thread {
+            try {
+                val items = kotlinx.coroutines.runBlocking {
+                    FarmDatabase.get(context).farmDao().medicineStockOnce()
+                }
+                val today = LocalDate.now()
+                val alerts = items.mapNotNull { item ->
+                    val expiry = runCatching { LocalDate.parse(item.expiryDate) }.getOrNull() ?: return@mapNotNull null
+                    when {
+                        expiry.isBefore(today) -> "${item.medicineName}: منتهي الصلاحية"
+                        item.quantity <= item.minimumQuantity -> "${item.medicineName}: المخزون منخفض (${item.quantity} ${item.unit})"
+                        ChronoUnit.DAYS.between(today, expiry) in 0..30 -> "${item.medicineName}: تنتهي صلاحيته خلال 30 يوماً"
+                        else -> null
+                    }
+                }
+                if (alerts.isNotEmpty()) {
+                    val channel = "mawashi_medicine_stock"
+                    val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as android.app.NotificationManager
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                        manager.createNotificationChannel(android.app.NotificationChannel(
+                            channel, "تنبيهات مخزون الأدوية", android.app.NotificationManager.IMPORTANCE_HIGH))
+                    }
+                    val notification = NotificationCompat.Builder(context, channel)
+                        .setSmallIcon(android.R.drawable.ic_dialog_alert)
+                        .setContentTitle("تنبيه مخزون الأدوية")
+                        .setContentText(alerts.take(3).joinToString(" • "))
+                        .setStyle(NotificationCompat.BigTextStyle().bigText(alerts.take(12).joinToString("\n")))
+                        .setPriority(NotificationCompat.PRIORITY_HIGH).setAutoCancel(true).build()
+                    try { NotificationManagerCompat.from(context).notify(1818, notification) }
+                    catch (_: SecurityException) { }
+                }
+            } finally { pending.finish() }
+        }.start()
+    }
+}
+
 class VaccineBootReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action != Intent.ACTION_BOOT_COMPLETED && intent.action != Intent.ACTION_MY_PACKAGE_REPLACED) return
+        scheduleMedicineStockAlerts(context)
         val pending = goAsync()
         Thread {
             try {
@@ -139,6 +193,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED)
             requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 2026)
+        scheduleMedicineStockAlerts(this)
         val db = FarmDatabase.get(this)
         setContent {
             val vm = remember { FarmViewModel(db.farmDao()) }
@@ -622,7 +677,7 @@ class FarmViewModel(private val dao: FarmDao) : ViewModel() {
         viewModelScope.launch { onResult(runCatching { dao.addReproductionWithOffspring(record) }.getOrDefault(false)) }
     }
     fun addMedicineStock(item: MedicineStock, onResult: (Boolean) -> Unit) {
-        viewModelScope.launch { onResult(runCatching { dao.addMedicineStock(item); dao.addAuditEntry(AuditEntry(action = "إضافة", recordType = "مخزون دواء", details = "${item.medicineName} • كمية: ${item.quantity} • صلاحية: ${item.expiryDate}")) }.isSuccess) }
+        viewModelScope.launch { onResult(runCatching { dao.addMedicineStockSafely(item) }.getOrDefault(false)) }
     }
 
     fun saveCareStatus(status: AnimalCareStatus, onResult: (Boolean) -> Unit) {
@@ -2073,6 +2128,7 @@ fun SmartFarmPanel(
     var medicineName by remember { mutableStateOf("") }
     var medicineQuantity by remember { mutableStateOf("") }
     var medicineExpiry by remember { mutableStateOf(today.plusMonths(6).toString()) }
+    var medicineMinimum by remember { mutableStateOf("1") }
     var reproductionType by remember { mutableStateOf("تلقيح") }
     var reproductionMale by remember { mutableStateOf("") }
     var reproductionExpected by remember { mutableStateOf("") }
@@ -2468,6 +2524,7 @@ fun SmartFarmPanel(
                 Text("إضافة دواء إلى المخزون", style = MaterialTheme.typography.titleMedium)
                 OutlinedTextField(medicineName, { medicineName = it }, label = { Text("اسم الدواء") }, modifier = Modifier.fillMaxWidth())
                 OutlinedTextField(medicineQuantity, { medicineQuantity = it }, label = { Text("الكمية") }, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(medicineMinimum, { medicineMinimum = it }, label = { Text("حد التنبيه عند انخفاض المخزون") }, modifier = Modifier.fillMaxWidth())
                 CalendarDateField(label = "تاريخ انتهاء الصلاحية", value = medicineExpiry, onDateSelected = { medicineExpiry = it })
                 Button(enabled = !saving && medicineName.isNotBlank() && (medicineQuantity.replace(',', '.').toDoubleOrNull() ?: 0.0) > 0,
                     onClick = {
@@ -2475,10 +2532,10 @@ fun SmartFarmPanel(
                         if (runCatching { LocalDate.parse(medicineExpiry) }.isFailure) { message = "تحقق من تاريخ الصلاحية." }
                         else {
                             saving = true
-                            onAddMedicineStock(MedicineStock(medicineName = medicineName.trim(), quantity = qty, expiryDate = medicineExpiry)) { ok ->
+                            onAddMedicineStock(MedicineStock(medicineName = medicineName.trim(), quantity = qty, minimumQuantity = medicineMinimum.replace(',', '.').toDoubleOrNull() ?: 1.0, expiryDate = medicineExpiry)) { ok ->
                                 saving = false
                                 message = if (ok) "تم تسجيل الدواء." else "تعذر تسجيل الدواء."
-                                if (ok) { medicineName = ""; medicineQuantity = "" }
+                                if (ok) { medicineName = ""; medicineQuantity = ""; medicineMinimum = "1" }
                             }
                         }
                     }, modifier = Modifier.fillMaxWidth()) { Text("إضافة إلى المخزون") }
@@ -2497,7 +2554,7 @@ fun SmartFarmPanel(
                     val expired = runCatching { LocalDate.parse(item.expiryDate).isBefore(today) }.getOrDefault(false)
                     val nearExpiry = runCatching { ChronoUnit.DAYS.between(today, LocalDate.parse(item.expiryDate)) in 0..30 }.getOrDefault(false)
                     ListItem(headlineContent = { Text(item.medicineName + " • " + item.quantity + " " + item.unit) },
-                        supportingContent = { Text("الصلاحية: ${item.expiryDate} • " + when { expired -> "منتهي الصلاحية — ممنوع الاستخدام"; nearExpiry -> "قريب الانتهاء"; item.quantity <= 1 -> "مخزون منخفض"; else -> "متاح" }) },
+                        supportingContent = { Text("الصلاحية: ${item.expiryDate} • " + when { expired -> "منتهي الصلاحية — ممنوع الاستخدام"; nearExpiry -> "قريب الانتهاء"; item.quantity <= item.minimumQuantity -> "مخزون منخفض (الحد: ${item.minimumQuantity})"; else -> "متاح" }) },
                         trailingContent = { TextButton(onClick = { onDeleteMedicineStock(item.id) { message = if (it) "تم حذف الدواء." else "تعذر الحذف." } }) { Text("حذف") } })
                     HorizontalDivider()
                 }
