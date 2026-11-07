@@ -41,6 +41,7 @@ name: Build Android APK
       - "mawashi-pro-v16-backup-pin-ui-20261107"
       - "mawashi-pro-v17-backup-assurance-20261107"
       - "mawashi-pro-v18-backup-stock-alerts-20261107"
+      - "mawashi-pro-v19-restore-permissions-roles-20261107"
 
 jobs:
   build:
@@ -138,7 +139,9 @@ jobs:
           p = Path("app/build.gradle.kts")
           s = p.read_text()
           branch = os.environ.get("GITHUB_REF_NAME")
-          expected = ("dz.murabbi.alghanm.mawashi.prov1820261107"
+          expected = ("dz.murabbi.alghanm.mawashi.prov1920261107"
+                      if branch == "mawashi-pro-v19-restore-permissions-roles-20261107"
+                      else "dz.murabbi.alghanm.mawashi.prov1820261107"
                       if branch == "mawashi-pro-v18-backup-stock-alerts-20261107"
                       else "dz.murabbi.alghanm.mawashi.prov1720261107"
                       if branch == "mawashi-pro-v17-backup-assurance-20261107"
@@ -203,7 +206,9 @@ jobs:
           s = Path("app/build.gradle.kts").read_text()
           m = re.search(r'applicationId\s*=\s*"([^"]+)"', s)
           branch = os.environ.get("GITHUB_REF_NAME")
-          expected = ("dz.murabbi.alghanm.mawashi.prov1820261107"
+          expected = ("dz.murabbi.alghanm.mawashi.prov1920261107"
+                      if branch == "mawashi-pro-v19-restore-permissions-roles-20261107"
+                      else "dz.murabbi.alghanm.mawashi.prov1820261107"
                       if branch == "mawashi-pro-v18-backup-stock-alerts-20261107"
                       else "dz.murabbi.alghanm.mawashi.prov1720261107"
                       if branch == "mawashi-pro-v17-backup-assurance-20261107"
@@ -263,11 +268,46 @@ jobs:
               s = s.replace(anchor, anchor + "\n" + dep, 1)
               p.write_text(s)
           PY
+          # Configure Android instrumentation tests after extracting the canonical Gradle project.
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          p = Path("app/build.gradle.kts")
+          s = p.read_text()
+          deps = [
+              '    androidTestImplementation("androidx.test.ext:junit:1.2.1")',
+              '    androidTestImplementation("androidx.test:runner:1.6.2")',
+              '    androidTestImplementation("androidx.test:core:1.6.1")'
+          ]
+          anchor = '    debugImplementation("androidx.compose.ui:ui-tooling")'
+          if anchor not in s:
+              raise SystemExit("Could not locate Gradle dependency insertion point for Android tests")
+          for dep in deps:
+              if dep not in s: s = s.replace(anchor, anchor + "\\n" + dep, 1)
+          if 'testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"' not in s:
+              match = re.search(r'(?m)^(\\s*)defaultConfig\\s*\\{', s)
+              if not match: raise SystemExit("Could not locate android.defaultConfig")
+              pos = match.end()
+              s = s[:pos] + '\\n        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"' + s[pos:]
+          p.write_text(s)
+          PY
           gradle --no-daemon :app:testDebugUnitTest
+          grep -q "FarmRolePolicyTest" app/src/test/java/dz/murabbi/alghanm/FarmRolePolicyTest.kt
+          grep -q "photoEntriesMatchAnimals" app/src/test/java/dz/murabbi/alghanm/BackupArchivePolicyTest.kt
+          echo "VERIFIED V19 ROLE POLICY AND STRICT PHOTO ARCHIVE TESTS"
           grep -q "rejectsTruncatedEnvelopeBeforeDecrypting" app/src/test/java/dz/murabbi/alghanm/BackupCryptoTest.kt
           grep -q "rejectsEmptyAndTooShortPasswords" app/src/test/java/dz/murabbi/alghanm/BackupCryptoTest.kt
           grep -q "encryptingStream" app/src/main/java/dz/murabbi/alghanm/BackupCrypto.kt
           echo "VERIFIED V17 BACKUP CRYPTO NEGATIVE-PATH TESTS"
+
+      - name: Run Android SQLite and audit instrumentation tests
+        uses: ReactiveCircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          profile: pixel_2
+          script: gradle --no-daemon :app:connectedDebugAndroidTest
 
       - name: Build APK
         run: gradle --no-daemon :app:assembleDebug
@@ -282,14 +322,14 @@ jobs:
             exit 1
           fi
           ACTUAL_PACKAGE="$("$AAPT" dump badging "$APK" | sed -n "s/^package: name='\\([^']*\\)'.*/\\1/p" | head -n 1)"
-          EXPECTED_PACKAGE="dz.murabbi.alghanm.mawashi.prov1820261107"
+          EXPECTED_PACKAGE="dz.murabbi.alghanm.mawashi.prov1920261107"
           if [ "$ACTUAL_PACKAGE" != "$EXPECTED_PACKAGE" ]; then
             echo "ERROR: APK package is $ACTUAL_PACKAGE, expected $EXPECTED_PACKAGE"
             exit 1
           fi
-          grep -q '"mawashi_pro_v18_standalone20261107.db"' app/src/main/java/dz/murabbi/alghanm/data/FarmDatabase.kt
+          grep -q '"mawashi_pro_v19_standalone20261107.db"' app/src/main/java/dz/murabbi/alghanm/data/FarmDatabase.kt
           echo "VERIFIED APK PACKAGE: $ACTUAL_PACKAGE"
-          echo "VERIFIED DATABASE: mawashi_pro_v18_standalone20261107.db"
+          echo "VERIFIED DATABASE: mawashi_pro_v19_standalone20261107.db"
           grep -q "PBKDF2WithHmacSHA256" app/src/main/java/dz/murabbi/alghanm/security/PinSecurity.kt
           grep -q "newRecoveryCode" MainActivity.txt
           grep -q "recoveryHash" MainActivity.txt
@@ -304,12 +344,19 @@ jobs:
           grep -q "photos/" app/src/main/java/dz/murabbi/alghanm/MawashiBackup.kt
           grep -q "PinSecurityTest" app/src/test/java/dz/murabbi/alghanm/security/PinSecurityTest.kt
           grep -q "activeOwner()" FarmDatabase.txt
-          grep -q "mawashi_pro_v18_standalone20261107.db" FarmDatabase.txt
-          grep -q "mawashi_pro_v18_standalone20261107.db" app/src/main/java/dz/murabbi/alghanm/MawashiBackup.kt
+          grep -q "mawashi_pro_v19_standalone20261107.db" FarmDatabase.txt
+          grep -q "mawashi_pro_v19_standalone20261107.db" app/src/main/java/dz/murabbi/alghanm/MawashiBackup.kt
           grep -q "ROOM_VERSION = 10" app/src/main/java/dz/murabbi/alghanm/MawashiBackup.kt
           grep -q "MedicineStockAlertReceiver" MainActivity.txt
           grep -q "addMedicineStockSafely" FarmDatabase.txt
           grep -q "minimumQuantity = medicineMinimum" MainActivity.txt
+          grep -q "photoEntriesMatchAnimals" app/src/main/java/dz/murabbi/alghanm/BackupArchivePolicy.kt
+          grep -q "readStoredPhotoTags" app/src/main/java/dz/murabbi/alghanm/MawashiBackup.kt
+          grep -q "addVaccineRecordAudited" FarmDatabase.txt
+          grep -q "addVaccineCampaignAudited" FarmDatabase.txt
+          grep -q "saveAnimalCareStatusAudited" FarmDatabase.txt
+          test -f app/src/androidTest/java/dz/murabbi/alghanm/FarmDatabaseInstrumentedTest.kt
+          echo "VERIFIED V19 ANDROID SQLITE AND AUDIT TEST FIXTURES"
           test -f app/src/main/java/dz/murabbi/alghanm/MedicineStockAlertPolicy.kt
           test -f app/src/test/java/dz/murabbi/alghanm/MedicineStockAlertPolicyTest.kt
           grep -q "expiryWithinThirtyDaysAlertsButDayThirtyOneDoesNot" app/src/test/java/dz/murabbi/alghanm/MedicineStockAlertPolicyTest.kt
@@ -348,5 +395,5 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: Mawashi-Pro-V18-Standalone-20261107-APK
+          name: Mawashi-Pro-V19-Standalone-20261107-APK
           path: app/build/outputs/apk/debug/app-debug.apk
